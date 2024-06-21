@@ -365,7 +365,7 @@ dlg:button {
                 local ytlBounds <const> = boundsSlice.y
                 local wBounds <const> = max(1, abs(boundsSlice.width))
                 local hBounds <const> = max(1, abs(boundsSlice.height))
-                local originBounds <const> = Point(xtlBounds, ytlBounds)
+                local blitOffset <const> = Point(-xtlBounds, -ytlBounds)
 
                 local wBlit <const> = min(256, wBounds)
                 local hBlit <const> = min(256, hBounds)
@@ -383,7 +383,7 @@ dlg:button {
                     local chosenFrIdx <const> = chosenFrIdcs[j]
 
                     local imageBlit <const> = Image(specBlit)
-                    imageBlit:drawSprite(activeSprite, chosenFrIdx, originBounds)
+                    imageBlit:drawSprite(activeSprite, chosenFrIdx, blitOffset)
                     chosenImages[#chosenImages + 1] = imageBlit
 
                     local palIdx <const> = chosenFrIdx <= lenSpritePalettes
