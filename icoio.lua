@@ -313,9 +313,9 @@ dlg:button {
             -- to the palette length.
             local dWordsPerRow <const> = ceil(wImage / 32)
             local lenDWords <const> = dWordsPerRow * hImage
-            -- TODO: Calculate correct size.
-            -- Size of bitmap header plus 
             local icoSize <const> = 40
+                + areaWrite * 4 -- 4 bytes per pixel
+                + lenDWords * 4 -- 4 bytes per dword
             local numColors = 0
 
             local entryHeader <const> = strpack(
