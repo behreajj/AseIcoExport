@@ -36,7 +36,7 @@ dlg:file {
     label = "Save:",
     filetypes = fileExts,
     save = true,
-    focus = false
+    focus = true,
 }
 
 dlg:newrow { always = false }
@@ -98,6 +98,7 @@ dlg:button {
         local min <const> = math.min
         local strbyte <const> = string.byte
         local strpack <const> = string.pack
+        local strsub <const> = string.sub
         local tconcat <const> = table.concat
 
         -- Unpack sprite specification.
@@ -249,8 +250,8 @@ dlg:button {
                 end
             end
         elseif visualTarget == "SELECTION" then
-            local selection <const> = activeSprite.selection
-            if selection.isEmpty then
+            local mask <const> = activeSprite.selection
+            if mask.isEmpty then
                 app.alert {
                     title = "Error",
                     text = "Selection is empty."
@@ -258,12 +259,11 @@ dlg:button {
                 return
             end
 
-            local boundsSel <const> = selection.bounds
-            local xtlBounds <const> = boundsSel.x
-            local ytlBounds <const> = boundsSel.y
-            local wBounds <const> = max(1, abs(boundsSel.width))
-            local hBounds <const> = max(1, abs(boundsSel.height))
-            local originBounds <const> = Point(xtlBounds, ytlBounds)
+            local boundsMask <const> = mask.bounds
+            local xtlBounds <const> = boundsMask.x
+            local ytlBounds <const> = boundsMask.y
+            local wBounds <const> = max(1, abs(boundsMask.width))
+            local hBounds <const> = max(1, abs(boundsMask.height))
 
             local wBlit <const> = min(256, wBounds)
             local hBlit <const> = min(256, hBounds)
@@ -275,14 +275,65 @@ dlg:button {
             }
             specBlit.colorSpace = colorSpaceSprite
 
+            local rgba32Zero <const> = strpack("B B B B", 0, 0, 0, 0)
+            local va16Zero <const> = strpack("B B", 0, 0)
+            local ai8Zero <const> = strpack("B", alphaIndexSprite)
+            local lenBlit <const> = wBlit * hBlit
+            local pointZero <const> = Point(0, 0)
+
             local j = 0
             while j < lenChosenFrIdcs do
                 j = j + 1
                 local chosenFrIdx <const> = chosenFrIdcs[j]
 
                 local imageBlit <const> = Image(specBlit)
-                imageBlit:drawSprite(activeSprite, chosenFrIdx, originBounds)
-                -- TODO: Remove pixels not in selection.
+                imageBlit:drawSprite(activeSprite, chosenFrIdx, pointZero)
+
+                ---@type string[]
+                local trgBytes <const> = {}
+                local srcBytes <const> = imageBlit.bytes
+
+                if colorModeSprite == ColorMode.RGB then
+                    local k = 0
+                    while k < lenBlit do
+                        local x <const> = k % wBlit
+                        local y <const> = k // wBlit
+                        if mask:contains(xtlBounds + x, ytlBounds + y) then
+                            local k4 <const> = k * 4
+                            trgBytes[1 + k] = strsub(srcBytes, 1 + k4, 4 + k4)
+                        else
+                            trgBytes[1 + k] = rgba32Zero
+                        end
+                        k = k + 1
+                    end
+                elseif colorModeSprite == ColorMode.GRAY then
+                    local k = 0
+                    while k < lenBlit do
+                        local x <const> = k % wBlit
+                        local y <const> = k // wBlit
+                        if mask:contains(xtlBounds + x, ytlBounds + y) then
+                            local k2 <const> = k * 2
+                            trgBytes[1 + k] = strsub(srcBytes, 1 + k2, 2 + k2)
+                        else
+                            trgBytes[1 + k] = va16Zero
+                        end
+                        k = k + 1
+                    end
+                elseif colorModeSprite == ColorMode.INDEXED then
+                    local k = 0
+                    while k < lenBlit do
+                        local x <const> = k % wBlit
+                        local y <const> = k // wBlit
+                        if mask:contains(xtlBounds + x, ytlBounds + y) then
+                            trgBytes[1 + k] = strsub(srcBytes, 1 + k, 1 + k)
+                        else
+                            trgBytes[1 + k] = ai8Zero
+                        end
+                        k = k + 1
+                    end
+                end
+
+                imageBlit.bytes = tconcat(trgBytes)
                 chosenImages[j] = imageBlit
 
                 local palIdx <const> = chosenFrIdx <= lenSpritePalettes
@@ -449,8 +500,6 @@ dlg:button {
                 0,       -- 4 bytes
                 0)       -- 4 bytes
 
-            -- TODO: Test translucency.
-            -- TODO: Test 256 x 256 image.
             local srcByteStr <const> = image.bytes
             ---@type string[]
             local trgColorBytes <const> = {}
