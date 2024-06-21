@@ -1,5 +1,5 @@
 local fileExts <const> = { "ico" }
-local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION" }
+local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
@@ -261,9 +261,9 @@ dlg:button {
             local boundsSel <const> = selection.bounds
             local xtlBounds <const> = boundsSel.x
             local ytlBounds <const> = boundsSel.y
-            local originBounds <const> = Point(xtlBounds, ytlBounds)
             local wBounds <const> = max(1, abs(boundsSel.width))
             local hBounds <const> = max(1, abs(boundsSel.height))
+            local originBounds <const> = Point(xtlBounds, ytlBounds)
 
             local wBlit <const> = min(256, wBounds)
             local hBlit <const> = min(256, hBounds)
@@ -289,6 +289,57 @@ dlg:button {
                     and chosenFrIdx or 1
                 local palette <const> = spritePalettes[palIdx]
                 chosenPalettes[j] = palette
+            end
+        elseif visualTarget == "SLICES" then
+            local slicesSprite <const> = activeSprite.slices
+            local lenSlicesSprite <const> = #slicesSprite
+            if lenSlicesSprite <= 0 then
+                app.alert {
+                    title = "Error",
+                    text = "Sprite does not contain any slices."
+                }
+                return
+            end
+
+            local defaultBounds <const> = Rectangle(0, 0, wSprite, hSprite)
+
+            -- Make the slices loop the outer loop in case a slice's frames
+            -- become accessible through API in the future.
+            local h = 0
+            while h < lenSlicesSprite do
+                h = h + 1
+                local slice <const> = slicesSprite[h]
+                local boundsSlice <const> = slice.bounds or defaultBounds
+                local xtlBounds <const> = boundsSlice.x
+                local ytlBounds <const> = boundsSlice.y
+                local wBounds <const> = max(1, abs(boundsSlice.width))
+                local hBounds <const> = max(1, abs(boundsSlice.height))
+                local originBounds <const> = Point(xtlBounds, ytlBounds)
+
+                local wBlit <const> = min(256, wBounds)
+                local hBlit <const> = min(256, hBounds)
+                local specBlit <const> = ImageSpec {
+                    width = wBlit,
+                    height = hBlit,
+                    colorMode = colorModeSprite,
+                    transparentColor = alphaIndexSprite
+                }
+                specBlit.colorSpace = colorSpaceSprite
+
+                local j = 0
+                while j < lenChosenFrIdcs do
+                    j = j + 1
+                    local chosenFrIdx <const> = chosenFrIdcs[j]
+
+                    local imageBlit <const> = Image(specBlit)
+                    imageBlit:drawSprite(activeSprite, chosenFrIdx, originBounds)
+                    chosenImages[#chosenImages + 1] = imageBlit
+
+                    local palIdx <const> = chosenFrIdx <= lenSpritePalettes
+                        and chosenFrIdx or 1
+                    local palette <const> = spritePalettes[palIdx]
+                    chosenPalettes[#chosenPalettes + 1] = palette
+                end
             end
         else
             -- Default to "CANVAS"
