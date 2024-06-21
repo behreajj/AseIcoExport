@@ -216,6 +216,9 @@ dlg:button {
             local pointZero <const> = Point(0, 0)
             local blendModeSrc <const> = BlendMode.SRC
 
+            -- TODO: Would it be worth going through all frames in a preliminary
+            -- loop and finding the minimum AABB around all images across frames
+            -- then offseting image blit by that?
             local j = 0
             while j < lenChosenFrIdcs do
                 j = j + 1
@@ -447,6 +450,9 @@ dlg:button {
         -- each ico entry is 16 bytes.
         local icoOffset = 6 + lenChosenImages * 16
 
+        -- Threshold for alpha at or below which mask is set to ignore.
+        local maskThreshold <const> = 0
+
         local k = 0
         while k < lenChosenImages do
             k = k + 1
@@ -535,7 +541,7 @@ dlg:button {
 
                     trgColorBytes[1 + m] = strpack("B B B B", b8, g8, r8, a8)
 
-                    local draw <const> = a8 <= 0 and 1 or 0
+                    local draw <const> = a8 <= maskThreshold and 1 or 0
                     local xDWord <const> = x // 32
                     local xBit <const> = 31 - x % 32
                     local idxDWord <const> = y * dWordsPerRow + xDWord
@@ -559,7 +565,7 @@ dlg:button {
 
                     trgColorBytes[1 + m] = strpack("B B B B", v8, v8, v8, a8)
 
-                    local draw <const> = a8 <= 0 and 1 or 0
+                    local draw <const> = a8 <= maskThreshold and 1 or 0
                     local xDWord <const> = x // 32
                     local xBit <const> = 31 - x % 32
                     local idxDWord <const> = y * dWordsPerRow + xDWord
@@ -595,7 +601,7 @@ dlg:button {
 
                     trgColorBytes[1 + m] = strpack("B B B B", b8, g8, r8, a8)
 
-                    local draw <const> = a8 <= 0 and 1 or 0
+                    local draw <const> = a8 <= maskThreshold and 1 or 0
                     local xDWord <const> = x // 32
                     local xBit <const> = 31 - x % 32
                     local idxDWord <const> = y * dWordsPerRow + xDWord
