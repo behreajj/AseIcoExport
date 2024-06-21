@@ -1,6 +1,6 @@
 local fileExts <const> = { "ico" }
 local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION" }
-local frameTargets <const> = { "ACTIVE", "ALL" }
+local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
     visualTarget = "CANVAS",
@@ -115,6 +115,38 @@ dlg:button {
                 or activeSprite.frames[1]
             local activeFrIdx <const> = activeFrObj.frameNumber
             chosenFrIdcs[1] = activeFrIdx
+        elseif frameTarget == "TAG" then
+            local tagsSprite <const> = activeSprite.tags
+            local lenTagsSprite <const> = #tagsSprite
+            if lenTagsSprite <= 0 then
+                app.alert {
+                    title = "Error",
+                    text = "Sprite does not contain any tags."
+                }
+                return
+            end
+
+            local spriteFrames <const> = activeSprite.frames
+            local lenSpriteFrames <const> = #spriteFrames
+
+            local activeTag <const> = app.tag or tagsSprite[1]
+            local frFrameObj <const> = activeTag.fromFrame
+            local toFrameObj <const> = activeTag.toFrame
+
+            -- It has been possible for tags to be out of bounds due to
+            -- export bugs.
+            local frFrameIdx <const> = min(max(
+                frFrameObj and frFrameObj.frameNumber or 1,
+                1), lenSpriteFrames)
+            local toFrameIdx <const> = min(max(
+                toFrameObj and toFrameObj.frameNumber or lenSpriteFrames,
+                1), lenSpriteFrames)
+
+            local i = frFrameIdx - 1
+            while i < toFrameIdx do
+                i = i + 1
+                chosenFrIdcs[#chosenFrIdcs + 1] = i
+            end
         else
             -- Default to "ALL".
             local spriteFrames <const> = activeSprite.frames
