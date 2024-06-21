@@ -86,24 +86,12 @@ dlg:button {
         local alphaIndexSprite <const> = specSprite.transparentColor
         local colorSpaceSprite <const> = specSprite.colorSpace
 
-        -- Find number of palettes in sprite.
-        local spritePalettes <const> = activeSprite.palettes
-        local lenSpritePalettes <const> = #spritePalettes
-
         ---@type integer[]
         local chosenFrIdcs <const> = {}
-
-        ---@type Palette[]
-        local chosenPalettes <const> = {}
-
         if frameTarget == "ACTIVE" then
             local activeFrObj <const> = app.frame
                 or activeSprite.frames[1]
             local activeFrIdx <const> = activeFrObj.frameNumber
-            local palIdx <const> = activeFrIdx <= lenSpritePalettes
-                and activeFrIdx
-                or 1
-            chosenPalettes[1] = spritePalettes[palIdx]
             chosenFrIdcs[1] = activeFrIdx
         else
             -- Default to "ALL".
@@ -113,10 +101,6 @@ dlg:button {
             while i < lenSpriteFrames do
                 i = i + 1
                 chosenFrIdcs[i] = i
-                local palIdx <const> = i <= lenSpritePalettes
-                    and i
-                    or 1
-                chosenPalettes[i] = spritePalettes[palIdx]
             end
         end
 
@@ -129,7 +113,15 @@ dlg:button {
             return
         end
 
+        -- Find number of palettes in sprite.
+        local spritePalettes <const> = activeSprite.palettes
+        local lenSpritePalettes <const> = #spritePalettes
+
+        ---@type Palette[]
+        local chosenPalettes <const> = {}
+        ---@type Image[]
         local chosenImages <const> = {}
+
         if visualTarget == "LAYER" then
             local activeLayer <const> = app.layer
                 or activeSprite.layers[1]
@@ -174,6 +166,7 @@ dlg:button {
             while j < lenChosenFrIdcs do
                 j = j + 1
                 local chosenFrIdx <const> = chosenFrIdcs[j]
+
                 local cel <const> = activeLayer:cel(chosenFrIdx)
                 if cel then
                     local imageCel <const> = cel.image
@@ -195,6 +188,11 @@ dlg:button {
                         imageTrg = imageBlit
                     end
                     chosenImages[#chosenImages + 1] = imageTrg
+
+                    local palIdx <const> = chosenFrIdx <= lenSpritePalettes
+                        and chosenFrIdx or 1
+                    local palette <const> = spritePalettes[palIdx]
+                    chosenPalettes[#chosenPalettes + 1] = palette
                 end
             end
         elseif visualTarget == "SELECTION" then
@@ -228,10 +226,16 @@ dlg:button {
             while j < lenChosenFrIdcs do
                 j = j + 1
                 local chosenFrIdx <const> = chosenFrIdcs[j]
+
                 local imageBlit <const> = Image(specBlit)
                 imageBlit:drawSprite(activeSprite, chosenFrIdx, originBounds)
                 -- TODO: Remove pixels not in selection.
                 chosenImages[j] = imageBlit
+
+                local palIdx <const> = chosenFrIdx <= lenSpritePalettes
+                    and chosenFrIdx or 1
+                local palette <const> = spritePalettes[palIdx]
+                chosenPalettes[j] = palette
             end
         else
             -- Default to "CANVAS"
@@ -250,9 +254,15 @@ dlg:button {
             while j < lenChosenFrIdcs do
                 j = j + 1
                 local chosenFrIdx <const> = chosenFrIdcs[j]
+
                 local imageBlit <const> = Image(specBlit)
                 imageBlit:drawSprite(activeSprite, chosenFrIdx, pointZero)
                 chosenImages[j] = imageBlit
+
+                local palIdx <const> = chosenFrIdx <= lenSpritePalettes
+                    and chosenFrIdx or 1
+                local palette <const> = spritePalettes[palIdx]
+                chosenPalettes[j] = palette
             end
         end
 
@@ -281,15 +291,6 @@ dlg:button {
         -- The overall header is 6 bytes,
         -- each ico entry is 16 bytes.
         local icoOffset = 6 + lenChosenImages * 16
-        local bitsPerPixel <const> = 32
-        local bmpPlanes <const> = 1
-        local bmpBpp <const> = 32
-        local bmpCompression <const> = 0
-        local bmpImgSize <const> = 0
-        local bmpResX <const> = 0
-        local bmpResY <const> = 0
-        local bmpUsedColors <const> = 0
-        local bmpKeyColors <const> = 0
 
         local k = 0
         while k < lenChosenImages do
@@ -320,31 +321,33 @@ dlg:button {
 
             local entryHeader <const> = strpack(
                 "B B B B <I2 <I2 <I4 <I4",
-                w8,           -- 1 bytes, image width
-                h8,           -- 1 bytes, image height
-                numColors,    -- 1 bytes, number of colors
-                0,            -- 1 bytes, reserved
-                1,            -- 2 bytes, number of planes
-                bitsPerPixel, -- 2 bytes, bits per pixel
-                icoSize,      -- 4 bytes, chunk size
-                icoOffset)    -- 4 bytes, chunk offset
+                w8,        -- 1 bytes, image width
+                h8,        -- 1 bytes, image height
+                numColors, -- 1 bytes, number of colors
+                0,         -- 1 bytes, reserved
+                1,         -- 2 bytes, number of planes
+                32,        -- 2 bytes, bits per pixel
+                icoSize,   -- 4 bytes, chunk size
+                icoOffset) -- 4 bytes, chunk offset
             entryHeaders[k] = entryHeader
             icoOffset = icoOffset + icoSize
 
             local bmpHeader <const> = strpack(
                 "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
-                40,             -- 4 bytes, header size
-                wImage,         -- 4 bytes, image width
-                hImage2,        -- 4 bytes, image height * 2
-                bmpPlanes,      -- 2 bytes
-                bmpBpp,         -- 2 bytes
-                bmpCompression, -- 4 bytes
-                bmpImgSize,     -- 4 bytes
-                bmpResX,        -- 4 bytes
-                bmpResY,        -- 4 bytes
-                bmpUsedColors,  -- 4 bytes
-                bmpKeyColors)   -- 4 bytes
+                40,      -- 4 bytes, header size
+                wImage,  -- 4 bytes, image width
+                hImage2, -- 4 bytes, image height * 2
+                1,       -- 2 bytes, number of planes
+                32,      -- 2 bytes, bits per pixel
+                0,       -- 4 bytes
+                0,       -- 4 bytes
+                0,       -- 4 bytes
+                0,       -- 4 bytes
+                0,       -- 4 bytes
+                0)       -- 4 bytes
 
+            -- TODO: Test translucency.
+            -- TODO: Test 256 x 256 image.
             local srcByteStr <const> = image.bytes
             ---@type string[]
             local trgColorBytes <const> = {}
@@ -456,13 +459,14 @@ dlg:button {
             local q = 0
             while q < lenDWords do
                 q = q + 1
+                -- This uses the reverse byte order due to how mask words
+                -- were written above.
                 maskBytes[q] = strpack(">I4", dWords[q])
             end
 
             -- To support indexed color mode, the palette would be written
             -- after the bmp header.
             local imageEntry <const> = tconcat({
-                -- icoHeader,
                 bmpHeader,
                 tconcat(trgColorBytes),
                 tconcat(maskBytes)
