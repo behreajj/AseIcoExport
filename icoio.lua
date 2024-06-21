@@ -338,13 +338,12 @@ dlg:button {
             local icoSize <const> = 40
                 + areaWrite * 4 -- 4 bytes per pixel
                 + lenDWords * 4 -- 4 bytes per dword
-            local numColors = 0
 
             local entryHeader <const> = strpack(
                 "B B B B <I2 <I2 <I4 <I4",
                 w8,        -- 1 bytes, image width
                 h8,        -- 1 bytes, image height
-                numColors, -- 1 bytes, number of colors
+                0,         -- 1 bytes, number of colors, 0 if gt 256
                 0,         -- 1 bytes, reserved
                 1,         -- 2 bytes, number of planes
                 32,        -- 2 bytes, bits per pixel
