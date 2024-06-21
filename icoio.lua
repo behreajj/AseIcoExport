@@ -283,7 +283,7 @@ dlg:button {
         local icoOffset = 6 + lenChosenImages * 16
         local bitsPerPixel <const> = 32
         local bmpPlanes <const> = 1
-        local bmpBpp <const> = 4
+        local bmpBpp <const> = 32
         local bmpCompression <const> = 0
         local bmpImgSize <const> = 0
         local bmpResX <const> = 0
