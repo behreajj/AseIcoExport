@@ -9,6 +9,28 @@ local defaults <const> = {
 
 local dlg <const> = Dialog { title = "Ico Export" }
 
+-- dlg:separator { id = "exportSep" }
+
+dlg:combobox {
+    id = "visualTarget",
+    label = "Target:",
+    option = defaults.visualTarget,
+    options = visualTargets,
+    focus = false,
+}
+
+dlg:newrow { always = false }
+
+dlg:combobox {
+    id = "frameTarget",
+    label = "Frames:",
+    option = defaults.frameTarget,
+    options = frameTargets,
+    focus = false,
+}
+
+dlg:newrow { always = false }
+
 dlg:file {
     id = "exportFilepath",
     label = "Save:",
@@ -35,11 +57,11 @@ dlg:button {
 
         -- Unpack arguments.
         local args <const> = dlg.data
-        local exportFilepath <const> = args.exportFilepath --[[@as string]]
         local visualTarget <const> = args.visualTarget
             or defaults.visualTarget --[[@as string]]
         local frameTarget <const> = args.frameTarget
             or defaults.frameTarget --[[@as string]]
+        local exportFilepath <const> = args.exportFilepath --[[@as string]]
 
         if (not exportFilepath) or (#exportFilepath < 1) then
             app.alert {
@@ -113,7 +135,6 @@ dlg:button {
             return
         end
 
-        -- Find number of palettes in sprite.
         local spritePalettes <const> = activeSprite.palettes
         local lenSpritePalettes <const> = #spritePalettes
 
@@ -494,7 +515,7 @@ dlg:button {
     end
 }
 
-dlg:newrow { wait = false }
+dlg:separator { id = "cancelSep" }
 
 dlg:button {
     id = "cancelButton",
