@@ -651,7 +651,10 @@ dlg:separator { id = "cancelSep" }
 dlg:button {
     id = "cancelButton",
     text = "&CANCEL",
-    focus = false
+    focus = false,
+    onclick = function()
+        dlg:close()
+    end
 }
 
 dlg:show { wait = false }
