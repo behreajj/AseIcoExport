@@ -155,12 +155,12 @@ dlg:button {
             if icoHeight == 0 then icoHeight = 256 end
             if numColors == 0 then numColors = 256 end
 
-            print(h)
-            print(string.format("icoWidth: %d, icoHeight: %d", icoWidth, icoHeight))
-            print(string.format("numColors: %d", numColors))
-            print(string.format("reserved: %d", reserved))
-            print(string.format("icoPlanes: %d, icoBpp: %d", icoPlanes, icoBpp))
-            print(string.format("dataSize: %d, dataOffset: %d", dataSize, dataOffset))
+            -- print(h)
+            -- print(string.format("icoWidth: %d, icoHeight: %d", icoWidth, icoHeight))
+            -- print(string.format("numColors: %d", numColors))
+            -- print(string.format("reserved: %d", reserved))
+            -- print(string.format("icoPlanes: %d, icoBpp: %d", icoPlanes, icoBpp))
+            -- print(string.format("dataSize: %d, dataOffset: %d", dataSize, dataOffset))
 
             -- TODO: Support recognition of compressed PNG headers instead of
             -- BMP headers, as they can be created by GIMP.
@@ -173,9 +173,9 @@ dlg:button {
                 "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
                 strsub(fileData, dataOffset + 1, dataOffset + 40))
 
-            print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
-            print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
-            print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
+            -- print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
+            -- print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
+            -- print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
 
             local bmpHeight <const> = bmpHeight2 // 2 --[[@as integer]]
             if bmpWidth > wMax then wMax = bmpWidth end
@@ -196,10 +196,10 @@ dlg:button {
             local dWordsPerRow24 <const> = ceil(bmpWidth3 / 4)
             local capacityPerRow24 <const> = 4 * dWordsPerRow24
 
-            print(string.format("dWordsPerRowMask: %d, lenDWords: %d",
-                dWordsPerRowMask, lenDWords))
-            print(string.format("dWordsPerRow24: %d, capacityPerRow24: %d",
-                dWordsPerRow24, capacityPerRow24))
+            -- print(string.format("dWordsPerRowMask: %d, lenDWords: %d",
+            --     dWordsPerRowMask, lenDWords))
+            -- print(string.format("dWordsPerRow24: %d, capacityPerRow24: %d",
+            --     dWordsPerRow24, capacityPerRow24))
 
             local alphaMapOffset <const> = dataOffset + dataSize - lenDWords * 4
 
@@ -265,10 +265,10 @@ dlg:button {
                         b8 = (abgr32 >> 0x10) & 0xff
                     end
 
-                    print(string.format(
-                        "bit: %d, idx: %d, r8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
-                        bit, idx, r8, g8, b8, a8,
-                        (r8 << 0x10 | g8 << 0x08 | b8)))
+                    -- print(string.format(
+                    --     "bit: %d, idx: %d, r8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
+                    --     bit, idx, r8, g8, b8, a8,
+                    --     (r8 << 0x10 | g8 << 0x08 | b8)))
 
                     local y <const> = bmpHeight - 1 - yFlipped
                     local idxFlat <const> = y * bmpWidth + x
@@ -386,13 +386,13 @@ dlg:button {
         spriteSpec.colorSpace = colorSpacesRgb
         local sprite <const> = Sprite(spriteSpec)
 
-        app.transaction("Set sprite file name.", function()
+        app.transaction("Set sprite file name", function()
             sprite.filename = app.fs.fileName(importFilepath)
         end)
 
         local lenImages <const> = #images
 
-        app.transaction("Create frames.", function()
+        app.transaction("Create frames", function()
             local m = 1
             while m < lenImages do
                 m = m + 1
@@ -403,7 +403,7 @@ dlg:button {
         local layer <const> = sprite.layers[1]
         local pointZero <const> = Point(0, 0)
 
-        app.transaction("Create cels.", function()
+        app.transaction("Create cels", function()
             local n = 0
             while n < lenImages do
                 n = n + 1
@@ -429,7 +429,7 @@ dlg:button {
 
         local spritePalette <const> = sprite.palettes[1]
 
-        app.transaction("Set palette.", function()
+        app.transaction("Set palette", function()
             spritePalette:resize(lenPalette)
             local o = 0
             while o < lenPalette do
