@@ -869,10 +869,13 @@ dlg:button {
                     local n <const> = yFlipped * wImage + x
                     local n4 <const> = n * 4
 
-                    local r8 <const>,
-                    g8 <const>,
-                    b8 <const>,
-                    a8 <const> = strbyte(srcByteStr, 1 + n4, 4 + n4)
+                    local r8, g8, b8, a8 <const> = strbyte(
+                        srcByteStr, 1 + n4, 4 + n4)
+                    if a8 <= maskThreshold then
+                        r8 = 0
+                        g8 = 0
+                        b8 = 0
+                    end
 
                     trgColorBytes[1 + m] = strpack("B B B B", b8, g8, r8, a8)
 
@@ -895,8 +898,10 @@ dlg:button {
                     local n <const> = yFlipped * wImage + x
                     local n2 <const> = n * 2
 
-                    local v8 <const>,
-                    a8 <const> = strbyte(srcByteStr, 1 + n2, 2 + n2)
+                    local v8, a8 <const> = strbyte(srcByteStr, 1 + n2, 2 + n2)
+                    if a8 <= maskThreshold then
+                        v8 = 0
+                    end
 
                     trgColorBytes[1 + m] = strpack("B B B B", v8, v8, v8, a8)
 
