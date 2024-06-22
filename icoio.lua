@@ -445,6 +445,25 @@ dlg:button {
             end
         end)
 
+        -- Set preferences in new document that minimize bugs.
+        local appPrefs <const> = app.preferences
+        if appPrefs then
+            local docPrefs <const> = appPrefs.document(sprite)
+            if docPrefs then
+                local onionSkinPrefs <const> = docPrefs.onionskin
+                if onionSkinPrefs then
+                    onionSkinPrefs.loop_tag = false
+                end
+
+                local thumbPrefs <const> = docPrefs.thumbnails
+                if thumbPrefs then
+                    thumbPrefs.enabled = true
+                    thumbPrefs.zoom = 1
+                    thumbPrefs.overlay_enabled = true
+                end
+            end
+        end
+
         app.layer = layer
         app.frame = sprite.frames[1]
         app.sprite = sprite
