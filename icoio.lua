@@ -202,6 +202,8 @@ dlg:button {
                 local xDWord <const> = x // 32
                 local xBit <const> = 31 - x % 32
                 local idxDWord <const> = 4 * (y * dWordsPerRow + xDWord)
+                -- TODO: When opening a 24-bit Aseprite generated ico, error
+                -- arises here.
                 local dWord <const> = strunpack(">I4", strsub(fileData,
                     alphaMapOffset + 1 + idxDWord,
                     alphaMapOffset + 4 + idxDWord))
@@ -248,10 +250,32 @@ dlg:button {
             elseif bmpBpp == 24 then
                 -- Wikipedia: "24 bit images are stored as B G R triples
                 -- but are not DWORD aligned."
-            elseif bmpBpp == 32 then
-                -- Wikipedia: "32 bit images are stored as B G R A quads."
-                -- local startColorMap <const> = dataOffset + 40
+                local k = 0
+                while k < areaImage do
+                    local a8 = 0
+                    local b8 = 0
+                    local g8 = 0
+                    local r8 = 0
 
+                    local x <const> = k % bmpWidth
+                    local yFlipped <const> = k // bmpWidth
+                    local y <const> = bmpHeight - 1 - yFlipped
+
+                    local bit <const> = alphaMask[1 + k]
+                    if bit == 0 then
+                        local k3 <const> = 3 * k
+                        b8, g8, r8 = strbyte(fileData,
+                            dataOffset + k3 + 41,
+                            dataOffset + k3 + 43)
+                        a8 = 255
+                    end
+
+                    local idxFlat <const> = y * bmpWidth + x
+                    byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
+
+                    k = k + 1
+                end
+            elseif bmpBpp == 32 then
                 local k = 0
                 while k < areaImage do
                     local a8 = 0
@@ -272,8 +296,8 @@ dlg:button {
                     end
 
                     -- print(string.format(
-                    --     "x: %d, yFlipped: %d, y: %d, bit: %d\nr8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
-                    --     x, yFlipped, y, bit, r8, g8, b8, a8,
+                    --     "bit: %d, r8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
+                    --     bit, r8, g8, b8, a8,
                     --     (r8 << 0x10 | g8 << 0x08 | b8)))
 
                     local idxFlat <const> = y * bmpWidth + x
@@ -295,7 +319,7 @@ dlg:button {
             images[#images + 1] = image
 
             cursor = cursor + 16
-            print(string.format("cursor: %d\n", cursor))
+            -- print(string.format("cursor: %d\n", cursor))
         end
 
         if wMax <= 0 or hMax <= 0 then
