@@ -932,7 +932,7 @@ dlg:button {
                     if idx ~= alphaIndexSprite then
                         local aseColor <const> = palette:getColor(idx)
                         a8 = aseColor.alpha
-                        if a8 > 0 then
+                        if a8 > maskThreshold then
                             r8 = aseColor.red
                             g8 = aseColor.green
                             b8 = aseColor.blue
