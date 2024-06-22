@@ -132,8 +132,10 @@ dlg:button {
         local hMax = -2147483648
         local colorModeRgb <const> = ColorMode.RGB
         local colorSpacesRgb <const> = ColorSpace { sRGB = false }
+
         ---@type table<integer, integer>
         local abgr32Dict <const> = {}
+        local dictCursor = 0
 
         local cursor = 6
         local h = 0
@@ -242,6 +244,9 @@ dlg:button {
                     j = j + 1
                     local palAbgr32 <const> = 0xff000000 | b8 << 0x10 | g8 << 0x08 | r8
                     palAbgr32s[j] = palAbgr32
+                    -- Alternatively, could place elements in sprite palette
+                    -- per their appearance here.
+                    -- abgr32Dict[palAbgr32] = j
                 end
 
                 local k = 0
@@ -273,7 +278,12 @@ dlg:button {
                     local y <const> = bmpHeight - 1 - yFlipped
                     local idxFlat <const> = y * bmpWidth + x
                     byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
-                    abgr32Dict[a8 << 0x18|b8 << 0x10|g8 << 0x08|r8] = 1 + idxFlat
+
+                    local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
+                    if not abgr32Dict[abgr32] then
+                        dictCursor = dictCursor + 1
+                        abgr32Dict[abgr32] = dictCursor
+                    end
 
                     k = k + 1
                 end
@@ -314,7 +324,12 @@ dlg:button {
                         local y <const> = bmpHeight - 1 - yFlipped
                         local idxFlat <const> = y * bmpWidth + x
                         byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
-                        abgr32Dict[a8 << 0x18|b8 << 0x10|g8 << 0x08|r8] = 1 + idxFlat
+
+                        local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
+                        if not abgr32Dict[abgr32] then
+                            dictCursor = dictCursor + 1
+                            abgr32Dict[abgr32] = dictCursor
+                        end
 
                         x = x + 1
                         k = k + 1
@@ -349,7 +364,12 @@ dlg:button {
                     local y <const> = bmpHeight - 1 - yFlipped
                     local idxFlat <const> = y * bmpWidth + x
                     byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
-                    abgr32Dict[a8 << 0x18|b8 << 0x10|g8 << 0x08|r8] = 1 + idxFlat
+
+                    local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
+                    if not abgr32Dict[abgr32] then
+                        dictCursor = dictCursor + 1
+                        abgr32Dict[abgr32] = dictCursor
+                    end
 
                     k = k + 1
                 end
