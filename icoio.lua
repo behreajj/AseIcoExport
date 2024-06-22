@@ -14,13 +14,15 @@ local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
+    -- TODO: Option to set FPS for imported icos?
+    -- TODO: Abstract 256x256 size limit to variables in defaults block.
     visualTarget = "CANVAS",
     frameTarget = "ALL",
 }
 
 local dlg <const> = Dialog { title = "Ico Export" }
 
-dlg:separator { id = "importSep" }
+-- dlg:separator { id = "importSep" }
 
 dlg:file {
     id = "importFilepath",
