@@ -101,6 +101,7 @@ dlg:button {
 
         -- Cache methods used in loops.
         local ceil <const> = math.ceil
+        local min <const> = math.min
         local strbyte <const> = string.byte
         local strpack <const> = string.pack
         local strsub <const> = string.sub
@@ -131,6 +132,8 @@ dlg:button {
         local hMax = -2147483648
         local colorModeRgb <const> = ColorMode.RGB
         local colorSpacesRgb <const> = ColorSpace { sRGB = false }
+        ---@type table<integer, integer>
+        local abgr32Dict <const> = {}
 
         local cursor = 6
         local h = 0
@@ -177,12 +180,21 @@ dlg:button {
             local bmpHeight <const> = bmpHeight2 // 2 --[[@as integer]]
             if bmpWidth > wMax then wMax = bmpWidth end
             if bmpHeight > hMax then hMax = bmpHeight end
+
+            -- Calculations for draw mask, with 1 bit per alpha.
             local areaImage <const> = bmpWidth * bmpHeight
             local dWordsPerRowMask <const> = ceil(bmpWidth / 32)
+            local lenDWords <const> = dWordsPerRowMask * bmpHeight
+
+            -- Calculations for 8 bit indexed mode with 256 length palette.
+            local numColors4 <const> = numColors * 4
+            local dWordsPerRowIdx <const> = ceil(bmpWidth / 4)
+            local capacityPerRowIdx <const> = 4 * dWordsPerRowIdx
+
+            -- Calculations for 24 bit RGB.
             local bmpWidth3 <const> = bmpWidth * 3
             local dWordsPerRow24 <const> = ceil(bmpWidth3 / 4)
             local capacityPerRow24 <const> = 4 * dWordsPerRow24
-            local lenDWords <const> = dWordsPerRowMask * bmpHeight
 
             print(string.format("dWordsPerRowMask: %d, lenDWords: %d",
                 dWordsPerRowMask, lenDWords))
@@ -215,41 +227,61 @@ dlg:button {
             local byteStrs <const> = {}
 
             if bmpBpp == 8 then
-                -- TODO: Do not allow for indexed color mode, even when bpp = 8 and
-                -- numColors > 0. This is because you can't set a new palette per
-                -- each frame like the Aseprite internal can. Maybe you'll have to
-                -- track unique colors across all frames to set the palette, regardless
-                -- of input bpp.
-
-                -- TODO: Test this against GIMP indexed color mode, not Aseprite.
-
                 ---@type integer[]
-                local abgr32s <const> = {}
+                local palAbgr32s <const> = {}
                 local j = 0
                 while j < numColors do
                     local j4 <const> = j * 4
-                    -- local a8 <const> = 255
-                    -- local a8 = strbyte(fileData, dataOffset + j4 + 40)
-                    -- local b8 <const> = strbyte(fileData, dataOffset + j4 + 41)
-                    -- local g8 <const> = strbyte(fileData, dataOffset + j4 + 42)
-                    -- local r8 <const> = strbyte(fileData, dataOffset + j4 + 43)
                     local b8 <const>, g8 <const>, r8 <const> = strbyte(
                         fileData, dataOffset + 41 + j4, dataOffset + 43 + j4)
-                    -- if j ~= 0 and r8 ~= 0 and g8 ~= 0 and b8 ~= 0 then
-                    --     a8 = 255
-                    -- end
                     -- print(string.format(
                     --     "r8: %03d, g8: %03d, b8: %03d, #%06X",
                     --     r8, g8, b8,
                     --     (r8 << 0x10 | g8 << 0x08 | b8)))
 
                     j = j + 1
-                    local abgr32 <const> = 0xff000000 | b8 << 0x10 | g8 << 0x08 | r8
-                    abgr32s[j] = abgr32
+                    local palAbgr32 <const> = 0xff000000 | b8 << 0x10 | g8 << 0x08 | r8
+                    palAbgr32s[j] = palAbgr32
+                end
+
+                local k = 0
+                while k < areaImage do
+                    local a8 = 0
+                    local b8 = 0
+                    local g8 = 0
+                    local r8 = 0
+
+                    local x <const> = k % bmpWidth
+                    local yFlipped <const> = k // bmpWidth
+
+                    local lookup <const> = yFlipped * capacityPerRowIdx + x
+                    local idx <const> = strbyte(fileData, dataOffset + 41 + numColors4 + lookup)
+                    local bit <const> = alphaMask[1 + k]
+                    if bit == 0 then
+                        a8 = 255
+                        local abgr32 <const> = palAbgr32s[1 + idx]
+                        r8 = abgr32 & 0xff
+                        g8 = (abgr32 >> 0x08) & 0xff
+                        b8 = (abgr32 >> 0x10) & 0xff
+                    end
+
+                    print(string.format(
+                        "bit: %d, idx: %d, r8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
+                        bit, idx, r8, g8, b8, a8,
+                        (r8 << 0x10 | g8 << 0x08 | b8)))
+
+                    local y <const> = bmpHeight - 1 - yFlipped
+                    local idxFlat <const> = y * bmpWidth + x
+                    byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
+                    abgr32Dict[a8 << 0x18|b8 << 0x10|g8 << 0x08|r8] = 1 + idxFlat
+
+                    k = k + 1
                 end
             elseif bmpBpp == 24 then
                 -- Wikipedia: "24 bit images are stored as B G R triples
                 -- but are not DWORD aligned."
+
+                -- TODO: See above, can this be refactored to be a single loop?
 
                 local k = 0
                 local yFlipped = 0
@@ -282,6 +314,7 @@ dlg:button {
                         local y <const> = bmpHeight - 1 - yFlipped
                         local idxFlat <const> = y * bmpWidth + x
                         byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
+                        abgr32Dict[a8 << 0x18|b8 << 0x10|g8 << 0x08|r8] = 1 + idxFlat
 
                         x = x + 1
                         k = k + 1
@@ -316,6 +349,7 @@ dlg:button {
                     local y <const> = bmpHeight - 1 - yFlipped
                     local idxFlat <const> = y * bmpWidth + x
                     byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
+                    abgr32Dict[a8 << 0x18|b8 << 0x10|g8 << 0x08|r8] = 1 + idxFlat
 
                     k = k + 1
                 end
@@ -378,7 +412,42 @@ dlg:button {
             end
         end)
 
-        -- TODO: Assign a palette.
+        ---@type integer[]
+        local uniqueColors <const> = {}
+        -- Ensure that alpha mask is at zero.
+        abgr32Dict[0] = -1
+        for abgr32, _ in pairs(abgr32Dict) do
+            uniqueColors[#uniqueColors + 1] = abgr32
+        end
+
+        table.sort(uniqueColors, function(a, b)
+            return abgr32Dict[a] < abgr32Dict[b]
+        end)
+
+        local lenUniqueColors <const> = #uniqueColors
+        local lenPalette <const> = min(256, lenUniqueColors)
+
+        local spritePalette <const> = sprite.palettes[1]
+
+        app.transaction("Set palette.", function()
+            spritePalette:resize(lenPalette)
+            local o = 0
+            while o < lenPalette do
+                local abgr32 <const> = uniqueColors[1 + o]
+                local aseColor <const> = Color {
+                    r = abgr32 & 0xff,
+                    g = (abgr32 >> 0x08) & 0xff,
+                    b = (abgr32 >> 0x10) & 0xff,
+                    a = (abgr32 >> 0x18) & 0xff
+                }
+                spritePalette:setColor(o, aseColor)
+                o = o + 1
+            end
+        end)
+
+        app.layer = layer
+        app.frame = sprite.frames[1]
+        app.sprite = sprite
     end
 }
 
