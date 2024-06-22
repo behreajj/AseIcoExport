@@ -175,6 +175,17 @@ dlg:button {
                 "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
                 strsub(fileData, dataOffset + 1, dataOffset + 40))
 
+            if bmpHeaderSize ~= 40 or reserved ~= 0 then
+                app.alert {
+                    title = "Error",
+                    text = {
+                        "Found a malformed header when parsing the file.",
+                        "This importer does not support Aseprite made icos."
+                    }
+                }
+                return
+            end
+
             -- print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
             -- print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
             -- print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
