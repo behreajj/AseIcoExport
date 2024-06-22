@@ -125,15 +125,12 @@ dlg:button {
             return
         end
 
-        -- TODO: wMax and hMax will become sprite width and height.
+        ---@type Image[]
+        local images <const> = {}
         local wMax = -2147483648
         local hMax = -2147483648
         local colorModeRgb <const> = ColorMode.RGB
         local colorSpacesRgb <const> = ColorSpace { sRGB = false }
-
-        -- TODO: Not all ico entries may produce viable images, so cache them in an array first.
-        ---@type Image[]
-        local images <const> = {}
 
         local cursor = 6
         local h = 0
@@ -146,8 +143,8 @@ dlg:button {
             reserved <const>,
             icoPlanes <const>,
             icoBpp <const>,
-            dataSize <const>,
-            dataOffset <const> = strunpack(
+            dataSize,
+            dataOffset = strunpack(
                 "B B B B <I2 <I2 <I4 <I4",
                 strsub(fileData, cursor + 1, cursor + 16))
 
@@ -164,17 +161,12 @@ dlg:button {
 
             -- TODO: Support recognition of compressed PNG headers instead of
             -- BMP headers, as they can be created by GIMP.
-            local bmpHeaderSize <const>,
-            bmpWidth <const>,
-            bmpHeight2 <const>,
-            bmpPlanes <const>,
-            bmpBpp <const>,
-            _ <const>,
-            _ <const>,
-            _ <const>,
-            _ <const>,
-            _ <const>,
-            _ <const> = strunpack(
+            local bmpHeaderSize,
+            bmpWidth,
+            bmpHeight2,
+            bmpPlanes,
+            bmpBpp,
+            _, _, _, _, _, _ = strunpack(
                 "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
                 strsub(fileData, dataOffset + 1, dataOffset + 40))
 
@@ -182,14 +174,20 @@ dlg:button {
             print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
             print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
 
-            local bmpHeight <const> = bmpHeight2 // 2
+            local bmpHeight <const> = bmpHeight2 // 2 --[[@as integer]]
             if bmpWidth > wMax then wMax = bmpWidth end
             if bmpHeight > hMax then hMax = bmpHeight end
             local areaImage <const> = bmpWidth * bmpHeight
-            local dWordsPerRow <const> = ceil(bmpWidth / 32)
-            local lenDWords <const> = dWordsPerRow * bmpHeight
+            local dWordsPerRowMask <const> = ceil(bmpWidth / 32)
+            local bmpWidth3 <const> = bmpWidth * 3
+            local dWordsPerRow24 <const> = ceil(bmpWidth3 / 4)
+            local capacityPerRow24 <const> = 4 * dWordsPerRow24
+            local lenDWords <const> = dWordsPerRowMask * bmpHeight
 
-            print(string.format("dWordsPerRow: %d, lenDWords: %d", dWordsPerRow, lenDWords))
+            print(string.format("dWordsPerRowMask: %d, lenDWords: %d",
+                dWordsPerRowMask, lenDWords))
+            print(string.format("dWordsPerRow24: %d, capacityPerRow24: %d",
+                dWordsPerRow24, capacityPerRow24))
 
             local alphaMapOffset <const> = dataOffset + dataSize - lenDWords * 4
 
@@ -201,7 +199,7 @@ dlg:button {
                 local y <const> = i // bmpWidth
                 local xDWord <const> = x // 32
                 local xBit <const> = 31 - x % 32
-                local idxDWord <const> = 4 * (y * dWordsPerRow + xDWord)
+                local idxDWord <const> = 4 * (y * dWordsPerRowMask + xDWord)
                 -- TODO: When opening a 24-bit Aseprite generated ico, error
                 -- arises here.
                 local dWord <const> = strunpack(">I4", strsub(fileData,
@@ -223,6 +221,8 @@ dlg:button {
                 -- track unique colors across all frames to set the palette, regardless
                 -- of input bpp.
 
+                -- TODO: Test this against GIMP indexed color mode, not Aseprite.
+
                 ---@type integer[]
                 local abgr32s <const> = {}
                 local j = 0
@@ -234,7 +234,7 @@ dlg:button {
                     -- local g8 <const> = strbyte(fileData, dataOffset + j4 + 42)
                     -- local r8 <const> = strbyte(fileData, dataOffset + j4 + 43)
                     local b8 <const>, g8 <const>, r8 <const> = strbyte(
-                        fileData, dataOffset + j4 + 41, dataOffset + j4 + 43)
+                        fileData, dataOffset + 41 + j4, dataOffset + 43 + j4)
                     -- if j ~= 0 and r8 ~= 0 and g8 ~= 0 and b8 ~= 0 then
                     --     a8 = 255
                     -- end
@@ -250,30 +250,44 @@ dlg:button {
             elseif bmpBpp == 24 then
                 -- Wikipedia: "24 bit images are stored as B G R triples
                 -- but are not DWORD aligned."
+
                 local k = 0
-                while k < areaImage do
-                    local a8 = 0
-                    local b8 = 0
-                    local g8 = 0
-                    local r8 = 0
+                local yFlipped = 0
+                while yFlipped < bmpHeight do
+                    local orig <const> = dataOffset + 41 + yFlipped * capacityPerRow24
+                    local dest <const> = orig + bmpWidth3
+                    local rowStr <const> = strsub(fileData, orig, dest)
+                    -- local lenRowStr <const> = #rowStr
+                    -- print(string.format("lenRowStr: %d", lenRowStr))
 
-                    local x <const> = k % bmpWidth
-                    local yFlipped <const> = k // bmpWidth
-                    local y <const> = bmpHeight - 1 - yFlipped
+                    local x = 0
+                    while x < bmpWidth do
+                        local a8 = 0
+                        local b8 = 0
+                        local g8 = 0
+                        local r8 = 0
 
-                    local bit <const> = alphaMask[1 + k]
-                    if bit == 0 then
-                        local k3 <const> = 3 * k
-                        b8, g8, r8 = strbyte(fileData,
-                            dataOffset + k3 + 41,
-                            dataOffset + k3 + 43)
-                        a8 = 255
+                        local bit <const> = alphaMask[1 + k]
+                        if bit == 0 then
+                            a8 = 255
+                            local x3 <const> = x * 3
+                            b8, g8, r8 = strbyte(rowStr, 1 + x3, 3 + x3)
+                        end
+
+                        -- print(string.format(
+                        --     "bit: %d, r8: %03d, g8: %03d, b8: %03d, #%06X",
+                        --     bit, r8, g8, b8,
+                        --     (r8 << 0x10 | g8 << 0x08 | b8)))
+
+                        local y <const> = bmpHeight - 1 - yFlipped
+                        local idxFlat <const> = y * bmpWidth + x
+                        byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
+
+                        x = x + 1
+                        k = k + 1
                     end
 
-                    local idxFlat <const> = y * bmpWidth + x
-                    byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
-
-                    k = k + 1
+                    yFlipped = yFlipped + 1
                 end
             elseif bmpBpp == 32 then
                 local k = 0
@@ -285,14 +299,13 @@ dlg:button {
 
                     local x <const> = k % bmpWidth
                     local yFlipped <const> = k // bmpWidth
-                    local y <const> = bmpHeight - 1 - yFlipped
 
                     local bit <const> = alphaMask[1 + k]
                     if bit == 0 then
                         local k4 <const> = 4 * k
                         b8, g8, r8, a8 = strbyte(fileData,
-                            dataOffset + k4 + 41,
-                            dataOffset + k4 + 44)
+                            dataOffset + 41 + k4,
+                            dataOffset + 44 + k4)
                     end
 
                     -- print(string.format(
@@ -300,6 +313,7 @@ dlg:button {
                     --     bit, r8, g8, b8, a8,
                     --     (r8 << 0x10 | g8 << 0x08 | b8)))
 
+                    local y <const> = bmpHeight - 1 - yFlipped
                     local idxFlat <const> = y * bmpWidth + x
                     byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
 
