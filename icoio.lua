@@ -1,3 +1,14 @@
+--[[
+    Wikipedia
+    https://en.wikipedia.org/wiki/ICO_(file_format)
+
+    "The evolution of the ICO file format" by Raymond Chen
+    https://devblogs.microsoft.com/oldnewthing/20101018-00/?p=12513
+    https://devblogs.microsoft.com/oldnewthing/20101019-00/?p=12503
+    https://devblogs.microsoft.com/oldnewthing/20101021-00/?p=12483
+    https://devblogs.microsoft.com/oldnewthing/20101022-00/?p=12473
+]]
+
 local fileExts <const> = { "ico" }
 local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
@@ -9,7 +20,331 @@ local defaults <const> = {
 
 local dlg <const> = Dialog { title = "Ico Export" }
 
--- dlg:separator { id = "exportSep" }
+dlg:separator { id = "importSep" }
+
+dlg:file {
+    id = "importFilepath",
+    label = "Open:",
+    filetypes = fileExts,
+    open = true,
+    focus = true
+}
+
+dlg:newrow { always = false }
+
+dlg:button {
+    id = "importButton",
+    text = "&IMPORT",
+    focus = false,
+    onclick = function()
+        local args <const> = dlg.data
+        local importFilepath <const> = args.importFilepath --[[@as string]]
+
+        if (not importFilepath) or (#importFilepath < 1)
+            or (not app.fs.isFile(importFilepath)) then
+            app.alert {
+                title = "Error",
+                text = "Invalid file path."
+            }
+            return
+        end
+
+        local fileExt <const> = app.fs.fileExtension(importFilepath)
+        local fileExtLc <const> = string.lower(fileExt)
+        if fileExtLc ~= "ico" then
+            app.alert {
+                title = "Error",
+                text = "File extension must be ico."
+            }
+            return
+        end
+
+        local binFile <const>, err <const> = io.open(importFilepath, "rb")
+        if err ~= nil then
+            if binFile then binFile:close() end
+            app.alert { title = "Error", text = err }
+            return
+        end
+        if binFile == nil then return end
+
+        -- As a precaution against crashes, do not allow slices UI interface
+        -- to be active.
+        local appTool <const> = app.tool
+        if appTool then
+            local toolName <const> = appTool.id
+            if toolName == "slice" then
+                app.tool = "hand"
+            end
+        end
+
+        -- Preserve fore and background colors.
+        local fgc <const> = app.fgColor
+        app.fgColor = Color {
+            r = fgc.red,
+            g = fgc.green,
+            b = fgc.blue,
+            a = fgc.alpha
+        }
+
+        app.command.SwitchColors()
+        local bgc <const> = app.fgColor
+        app.fgColor = Color {
+            r = bgc.red,
+            g = bgc.green,
+            b = bgc.blue,
+            a = bgc.alpha
+        }
+        app.command.SwitchColors()
+
+        local fileData <const> = binFile:read("a")
+        binFile:close()
+
+        -- Cache methods used in loops.
+        local ceil <const> = math.ceil
+        local strbyte <const> = string.byte
+        local strpack <const> = string.pack
+        local strsub <const> = string.sub
+        local strunpack <const> = string.unpack
+        local tconcat <const> = table.concat
+
+        local icoHeaderType <const> = strunpack("<I2", strsub(fileData, 3, 4))
+        if icoHeaderType ~= 1 then
+            app.alert {
+                title = "Error",
+                text = "Only icons are supported."
+            }
+            return
+        end
+
+        local icoHeaderEntries <const> = strunpack("<I2", strsub(fileData, 5, 6))
+        if icoHeaderEntries <= 0 then
+            app.alert {
+                title = "Error",
+                text = "The file contained no icon image entries."
+            }
+            return
+        end
+
+        -- TODO: wMax and hMax will become sprite width and height.
+        local wMax = -2147483648
+        local hMax = -2147483648
+        local colorModeRgb <const> = ColorMode.RGB
+        local colorSpacesRgb <const> = ColorSpace { sRGB = false }
+
+        -- TODO: Not all ico entries may produce viable images, so cache them in an array first.
+        ---@type Image[]
+        local images <const> = {}
+
+        local cursor = 6
+        local h = 0
+        while h < icoHeaderEntries do
+            h = h + 1
+
+            local icoWidth,
+            icoHeight,
+            numColors,
+            reserved <const>,
+            icoPlanes <const>,
+            icoBpp <const>,
+            dataSize <const>,
+            dataOffset <const> = strunpack(
+                "B B B B <I2 <I2 <I4 <I4",
+                strsub(fileData, cursor + 1, cursor + 16))
+
+            if icoWidth == 0 then icoWidth = 256 end
+            if icoHeight == 0 then icoHeight = 256 end
+            if numColors == 0 then numColors = 256 end
+
+            print(h)
+            print(string.format("icoWidth: %d, icoHeight: %d", icoWidth, icoHeight))
+            print(string.format("numColors: %d", numColors))
+            print(string.format("reserved: %d", reserved))
+            print(string.format("icoPlanes: %d, icoBpp: %d", icoPlanes, icoBpp))
+            print(string.format("dataSize: %d, dataOffset: %d", dataSize, dataOffset))
+
+            -- TODO: Support recognition of compressed PNG headers instead of
+            -- BMP headers, as they can be created by GIMP.
+            local bmpHeaderSize <const>,
+            bmpWidth <const>,
+            bmpHeight2 <const>,
+            bmpPlanes <const>,
+            bmpBpp <const>,
+            _ <const>,
+            _ <const>,
+            _ <const>,
+            _ <const>,
+            _ <const>,
+            _ <const> = strunpack(
+                "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
+                strsub(fileData, dataOffset + 1, dataOffset + 40))
+
+            print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
+            print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
+            print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
+
+            local bmpHeight <const> = bmpHeight2 // 2
+            if bmpWidth > wMax then wMax = bmpWidth end
+            if bmpHeight > hMax then hMax = bmpHeight end
+            local areaImage <const> = bmpWidth * bmpHeight
+            local dWordsPerRow <const> = ceil(bmpWidth / 32)
+            local lenDWords <const> = dWordsPerRow * bmpHeight
+
+            print(string.format("dWordsPerRow: %d, lenDWords: %d", dWordsPerRow, lenDWords))
+
+            local alphaMapOffset <const> = dataOffset + dataSize - lenDWords * 4
+
+            ---@type integer[]
+            local alphaMask <const> = {}
+            local i = 0
+            while i < areaImage do
+                local x <const> = i % bmpWidth
+                local y <const> = i // bmpWidth
+                local xDWord <const> = x // 32
+                local xBit <const> = 31 - x % 32
+                local idxDWord <const> = 4 * (y * dWordsPerRow + xDWord)
+                local dWord <const> = strunpack(">I4", strsub(fileData,
+                    alphaMapOffset + 1 + idxDWord,
+                    alphaMapOffset + 4 + idxDWord))
+                local bit <const> = (dWord >> xBit) & 0x1
+                alphaMask[1 + i] = bit
+                i = i + 1
+            end
+            -- print(tconcat(alphaMask, ", "))
+
+            ---@type string[]
+            local byteStrs <const> = {}
+
+            if bmpBpp == 8 then
+                -- TODO: Do not allow for indexed color mode, even when bpp = 8 and
+                -- numColors > 0. This is because you can't set a new palette per
+                -- each frame like the Aseprite internal can. Maybe you'll have to
+                -- track unique colors across all frames to set the palette, regardless
+                -- of input bpp.
+
+                ---@type integer[]
+                local abgr32s <const> = {}
+                local j = 0
+                while j < numColors do
+                    local j4 <const> = j * 4
+                    -- local a8 <const> = 255
+                    -- local a8 = strbyte(fileData, dataOffset + j4 + 40)
+                    -- local b8 <const> = strbyte(fileData, dataOffset + j4 + 41)
+                    -- local g8 <const> = strbyte(fileData, dataOffset + j4 + 42)
+                    -- local r8 <const> = strbyte(fileData, dataOffset + j4 + 43)
+                    local b8 <const>, g8 <const>, r8 <const> = strbyte(
+                        fileData, dataOffset + j4 + 41, dataOffset + j4 + 43)
+                    -- if j ~= 0 and r8 ~= 0 and g8 ~= 0 and b8 ~= 0 then
+                    --     a8 = 255
+                    -- end
+                    -- print(string.format(
+                    --     "r8: %03d, g8: %03d, b8: %03d, #%06X",
+                    --     r8, g8, b8,
+                    --     (r8 << 0x10 | g8 << 0x08 | b8)))
+
+                    j = j + 1
+                    local abgr32 <const> = 0xff000000 | b8 << 0x10 | g8 << 0x08 | r8
+                    abgr32s[j] = abgr32
+                end
+            elseif bmpBpp == 24 then
+                -- Wikipedia: "24 bit images are stored as B G R triples
+                -- but are not DWORD aligned."
+            elseif bmpBpp == 32 then
+                -- Wikipedia: "32 bit images are stored as B G R A quads."
+                -- local startColorMap <const> = dataOffset + 40
+
+                local k = 0
+                while k < areaImage do
+                    local a8 = 0
+                    local b8 = 0
+                    local g8 = 0
+                    local r8 = 0
+
+                    local x <const> = k % bmpWidth
+                    local yFlipped <const> = k // bmpWidth
+                    local y <const> = bmpHeight - 1 - yFlipped
+
+                    local bit <const> = alphaMask[1 + k]
+                    if bit == 0 then
+                        local k4 <const> = 4 * k
+                        b8, g8, r8, a8 = strbyte(fileData,
+                            dataOffset + k4 + 41,
+                            dataOffset + k4 + 44)
+                    end
+
+                    -- print(string.format(
+                    --     "x: %d, yFlipped: %d, y: %d, bit: %d\nr8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
+                    --     x, yFlipped, y, bit, r8, g8, b8, a8,
+                    --     (r8 << 0x10 | g8 << 0x08 | b8)))
+
+                    local idxFlat <const> = y * bmpWidth + x
+                    byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
+
+                    k = k + 1
+                end
+            end
+
+            local imageSpec <const> = ImageSpec {
+                width = bmpWidth,
+                height = bmpHeight,
+                colorMode = colorModeRgb,
+                transparentColor = 0
+            }
+            imageSpec.colorSpace = colorSpacesRgb
+            local image <const> = Image(imageSpec)
+            image.bytes = tconcat(byteStrs)
+            images[#images + 1] = image
+
+            cursor = cursor + 16
+            print(string.format("cursor: %d\n", cursor))
+        end
+
+        if wMax <= 0 or hMax <= 0 then
+            app.alert {
+                title = "Error",
+                text = "The size of the new sprite is invalid."
+            }
+        end
+
+        local spriteSpec <const> = ImageSpec {
+            width = wMax,
+            height = hMax,
+            colorMode = colorModeRgb,
+            transparentColor = 0
+        }
+        spriteSpec.colorSpace = colorSpacesRgb
+        local sprite <const> = Sprite(spriteSpec)
+
+        app.transaction("Set sprite file name.", function()
+            sprite.filename = app.fs.fileName(importFilepath)
+        end)
+
+        local lenImages <const> = #images
+
+        app.transaction("Create frames.", function()
+            local m = 1
+            while m < lenImages do
+                m = m + 1
+                sprite:newEmptyFrame()
+            end
+        end)
+
+        local layer <const> = sprite.layers[1]
+        local pointZero <const> = Point(0, 0)
+
+        app.transaction("Create cels.", function()
+            local n = 0
+            while n < lenImages do
+                n = n + 1
+                local image <const> = images[n]
+                sprite:newCel(layer, n, image, pointZero)
+            end
+        end)
+
+        -- TODO: Assign a palette.
+    end
+}
+
+dlg:separator { id = "exportSep" }
 
 dlg:combobox {
     id = "visualTarget",
@@ -76,7 +411,7 @@ dlg:button {
         if fileExtLc ~= "ico" then
             app.alert {
                 title = "Error",
-                text = "File format must be ico."
+                text = "File extension must be ico."
             }
             return
         end
@@ -483,7 +818,7 @@ dlg:button {
                 "B B B B <I2 <I2 <I4 <I4",
                 w8,        -- 1 bytes, image width
                 h8,        -- 1 bytes, image height
-                0,         -- 1 bytes, number of colors, 0 if gt 256
+                0,         -- 1 bytes, color count, 0 if gt 256
                 0,         -- 1 bytes, reserved
                 1,         -- 2 bytes, number of planes
                 32,        -- 2 bytes, bits per pixel
@@ -510,10 +845,10 @@ dlg:button {
             ---@type string[]
             local trgColorBytes <const> = {}
 
-            -- From Wikipedia:
-            -- "The mask has to align to a DWORD (32 bits) and should be packed
-            -- with 0s. A 0 pixel means 'the corresponding pixel in the image
-            -- will be drawn' and a 1 means 'ignore this pixel'."
+            -- Wikipedia: "The mask has to align to a DWORD (32 bits) and
+            -- should be packed with 0s. A 0 pixel means 'the corresponding
+            -- pixel in the image will be drawn' and a 1 means 'ignore this
+            -- pixel'."
 
             ---@type integer[]
             local dWords <const> = {}
