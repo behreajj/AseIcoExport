@@ -27,7 +27,7 @@ dlg:file {
     label = "Open:",
     filetypes = fileExts,
     open = true,
-    focus = true
+    focus = false,
 }
 
 dlg:newrow { always = false }
@@ -164,8 +164,6 @@ dlg:button {
             -- print(string.format("icoPlanes: %d, icoBpp: %d", icoPlanes, icoBpp))
             -- print(string.format("dataSize: %d, dataOffset: %d", dataSize, dataOffset))
 
-            -- TODO: Support recognition of compressed PNG headers instead of
-            -- BMP headers, as they can be created by GIMP.
             local bmpHeaderSize,
             bmpWidth,
             bmpHeight2,
