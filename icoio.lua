@@ -180,7 +180,8 @@ dlg:button {
                     title = "Error",
                     text = {
                         "Found a malformed header when parsing the file.",
-                        "This importer does not support Aseprite made icos."
+                        "This importer does not support Aseprite made icos,",
+                        "nor does it support icos with compressed pngs."
                     }
                 }
                 return
@@ -225,8 +226,6 @@ dlg:button {
                 local xDWord <const> = x // 32
                 local xBit <const> = 31 - x % 32
                 local idxDWord <const> = 4 * (y * dWordsPerRowMask + xDWord)
-                -- TODO: When opening a 24-bit Aseprite generated ico, error
-                -- arises here.
                 local dWord <const> = strunpack(">I4", strsub(fileData,
                     alphaMapOffset + 1 + idxDWord,
                     alphaMapOffset + 4 + idxDWord))
