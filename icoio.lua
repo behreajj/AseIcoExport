@@ -160,11 +160,12 @@ dlg:button {
         while h < icoHeaderEntries do
             h = h + 1
 
-            -- One problems causing invalid Aseprite icos is that the data
+            -- One problem causing invalid Aseprite icos is that the data
             -- size and offset are miscalculated. One way to tell that a
             -- file is Aseprite generated is that the bmpSize and dataSize
-            -- will be equal. In case it's ever worth recalculating the sizes,
-            -- they're left without the const modifier here.
+            -- will be equal. In GIMP the bmpSize will be zero. In case it's
+            -- ever worth recalculating the sizes, they don't use the
+            -- const modifier.
             local icoWidth,
             icoHeight,
             numColors,
@@ -198,6 +199,12 @@ dlg:button {
                 "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
                 strsub(fileData, dataOffset + 1, dataOffset + 40))
 
+            -- Calculate the height here in case you want to try to verify the
+            -- data size.
+            local bmpHeight <const> = bmpHeight2 // 2 --[[@as integer]]
+            if bmpWidth > wMax then wMax = bmpWidth end
+            if bmpHeight > hMax then hMax = bmpHeight end
+
             if bmpHeaderSize ~= 40 or reserved ~= 0 then
                 app.alert {
                     title = "Error",
@@ -213,10 +220,7 @@ dlg:button {
             -- print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
             -- print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
             -- print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
-
-            local bmpHeight <const> = bmpHeight2 // 2 --[[@as integer]]
-            if bmpWidth > wMax then wMax = bmpWidth end
-            if bmpHeight > hMax then hMax = bmpHeight end
+            -- print(string.format("bmpSize: %d", bmpSize))
 
             -- Calculations for draw mask, with 1 bit per alpha.
             local areaImage <const> = bmpWidth * bmpHeight
