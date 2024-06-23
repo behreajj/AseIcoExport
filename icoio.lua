@@ -272,11 +272,12 @@ dlg:button {
                     local x <const> = k % bmpWidth
                     local yFlipped <const> = k // bmpWidth
 
-                    local lookup <const> = yFlipped * capacityPerRowIdx + x
-                    local idxMap <const> = strbyte(fileData, dataOffset + 41 + numColors4 + lookup)
                     local mask <const> = masks[1 + k]
                     if mask == 0 then
                         a8 = 255
+                        local idxMap <const> = strbyte(fileData,
+                            dataOffset + 41 + numColors4
+                            + yFlipped * capacityPerRowIdx + x)
                         local abgr32 <const> = palAbgr32s[1 + idxMap]
                         r8 = abgr32 & 0xff
                         g8 = (abgr32 >> 0x08) & 0xff
