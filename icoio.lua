@@ -14,8 +14,8 @@ local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
-    -- TODO: Option to set FPS for imported icos?
     -- TODO: Abstract 256x256 size limit to variables in defaults block.
+    fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
 }
@@ -23,6 +23,16 @@ local defaults <const> = {
 local dlg <const> = Dialog { title = "Ico Export" }
 
 -- dlg:separator { id = "importSep" }
+
+dlg:slider {
+    id = "fps",
+    label = "FPS:",
+    min = 1,
+    max = 60,
+    value = defaults.fps,
+}
+
+dlg:newrow { always = false }
 
 dlg:file {
     id = "importFilepath",
@@ -40,6 +50,7 @@ dlg:button {
     focus = false,
     onclick = function()
         local args <const> = dlg.data
+        local fps <const> = args.fps or defaults.fps --[[@as integer]]
         local importFilepath <const> = args.importFilepath --[[@as string]]
 
         if (not importFilepath) or (#importFilepath < 1)
@@ -427,6 +438,16 @@ dlg:button {
             while m < lenImages do
                 m = m + 1
                 sprite:newEmptyFrame()
+            end
+        end)
+
+        app.transaction("Set frame duration", function()
+            local dur <const> = 1.0 / math.max(1, fps)
+            local spriteFrames <const> = sprite.frames
+            local n = 0
+            while n < lenImages do
+                n = n + 1
+                spriteFrames[n].duration = dur
             end
         end)
 
