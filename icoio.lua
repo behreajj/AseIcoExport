@@ -273,11 +273,11 @@ dlg:button {
                     local yFlipped <const> = k // bmpWidth
 
                     local lookup <const> = yFlipped * capacityPerRowIdx + x
-                    local idx <const> = strbyte(fileData, dataOffset + 41 + numColors4 + lookup)
+                    local idxMap <const> = strbyte(fileData, dataOffset + 41 + numColors4 + lookup)
                     local bit <const> = alphaMask[1 + k]
                     if bit == 0 then
                         a8 = 255
-                        local abgr32 <const> = palAbgr32s[1 + idx]
+                        local abgr32 <const> = palAbgr32s[1 + idxMap]
                         r8 = abgr32 & 0xff
                         g8 = (abgr32 >> 0x08) & 0xff
                         b8 = (abgr32 >> 0x10) & 0xff
@@ -289,8 +289,8 @@ dlg:button {
                     --     (r8 << 0x10 | g8 << 0x08 | b8)))
 
                     local y <const> = bmpHeight - 1 - yFlipped
-                    local idxFlat <const> = y * bmpWidth + x
-                    byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
+                    local idxAse <const> = y * bmpWidth + x
+                    byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
 
                     local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
                     if not abgr32Dict[abgr32] then
@@ -303,58 +303,46 @@ dlg:button {
             elseif bmpBpp == 24 then
                 -- Wikipedia: "24 bit images are stored as B G R triples
                 -- but are not DWORD aligned."
-
                 local bmpWidth3 <const> = bmpWidth * 3
                 local dWordsPerRow24 <const> = ceil(bmpWidth3 / 4)
                 local capacityPerRow24 <const> = 4 * dWordsPerRow24
                 -- print(string.format("dWordsPerRow24: %d, capacityPerRow24: %d",
                 --     dWordsPerRow24, capacityPerRow24))
 
-                -- TODO: See above, can this be refactored to be a single loop?
-
                 local k = 0
-                local yFlipped = 0
-                while yFlipped < bmpHeight do
-                    local orig <const> = dataOffset + 41 + yFlipped * capacityPerRow24
-                    local dest <const> = orig + bmpWidth3
-                    local rowStr <const> = strsub(fileData, orig, dest)
-                    -- local lenRowStr <const> = #rowStr
-                    -- print(string.format("lenRowStr: %d", lenRowStr))
+                while k < areaImage do
+                    local a8 = 0
+                    local b8 = 0
+                    local g8 = 0
+                    local r8 = 0
 
-                    local x = 0
-                    while x < bmpWidth do
-                        local a8 = 0
-                        local b8 = 0
-                        local g8 = 0
-                        local r8 = 0
+                    local x <const> = k % bmpWidth
+                    local yFlipped <const> = k // bmpWidth
 
-                        local bit <const> = alphaMask[1 + k]
-                        if bit == 0 then
-                            a8 = 255
-                            local x3 <const> = x * 3
-                            b8, g8, r8 = strbyte(rowStr, 1 + x3, 3 + x3)
-                        end
-
-                        -- print(string.format(
-                        --     "bit: %d, r8: %03d, g8: %03d, b8: %03d, #%06X",
-                        --     bit, r8, g8, b8,
-                        --     (r8 << 0x10 | g8 << 0x08 | b8)))
-
-                        local y <const> = bmpHeight - 1 - yFlipped
-                        local idxFlat <const> = y * bmpWidth + x
-                        byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
-
-                        local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
-                        if not abgr32Dict[abgr32] then
-                            dictCursor = dictCursor + 1
-                            abgr32Dict[abgr32] = dictCursor
-                        end
-
-                        x = x + 1
-                        k = k + 1
+                    local bit <const> = alphaMask[1 + k]
+                    if bit == 0 then
+                        a8 = 255
+                        local x3 <const> = x * 3
+                        local offset <const> = dataOffset + 41 + yFlipped * capacityPerRow24
+                        b8, g8, r8 = strbyte(fileData, offset + x3, offset + 2 + x3)
                     end
 
-                    yFlipped = yFlipped + 1
+                    -- print(string.format(
+                    --     "bit: %d, r8: %03d, g8: %03d, b8: %03d, #%06X",
+                    --     bit, r8, g8, b8,
+                    --     (r8 << 0x10 | g8 << 0x08 | b8)))
+
+                    local y <const> = bmpHeight - 1 - yFlipped
+                    local idxAse <const> = y * bmpWidth + x
+                    byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
+
+                    local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
+                    if not abgr32Dict[abgr32] then
+                        dictCursor = dictCursor + 1
+                        abgr32Dict[abgr32] = dictCursor
+                    end
+
+                    k = k + 1
                 end
             elseif bmpBpp == 32 then
                 local k = 0
@@ -381,8 +369,8 @@ dlg:button {
                     --     (r8 << 0x10 | g8 << 0x08 | b8)))
 
                     local y <const> = bmpHeight - 1 - yFlipped
-                    local idxFlat <const> = y * bmpWidth + x
-                    byteStrs[1 + idxFlat] = strpack("B B B B", r8, g8, b8, a8)
+                    local idxAse <const> = y * bmpWidth + x
+                    byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
 
                     local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
                     if not abgr32Dict[abgr32] then
