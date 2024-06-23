@@ -252,7 +252,7 @@ dlg:button {
             local palAbgr32s <const> = {}
             local numColors4 <const> = numColors * 4
 
-            if numColors > 0 and numColors <= 256 then
+            if bmpBpp <= 8 and numColors > 0 then
                 local j = 0
                 while j < numColors do
                     local j4 <const> = j * 4
