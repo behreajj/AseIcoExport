@@ -215,7 +215,7 @@ dlg:button {
             -- dWordsPerRowMask, lenDWords))
 
             ---@type integer[]
-            local alphaMask <const> = {}
+            local masks <const> = {}
             local i = 0
             while i < areaImage do
                 local x <const> = i % bmpWidth
@@ -226,8 +226,8 @@ dlg:button {
                 local dWord <const> = strunpack(">I4", strsub(fileData,
                     alphaMapOffset + 1 + idxDWord,
                     alphaMapOffset + 4 + idxDWord))
-                local bit <const> = (dWord >> xBit) & 0x1
-                alphaMask[1 + i] = bit
+                local mask <const> = (dWord >> xBit) & 0x1
+                masks[1 + i] = mask
                 i = i + 1
             end
             -- print(tconcat(alphaMask, ", "))
@@ -274,8 +274,8 @@ dlg:button {
 
                     local lookup <const> = yFlipped * capacityPerRowIdx + x
                     local idxMap <const> = strbyte(fileData, dataOffset + 41 + numColors4 + lookup)
-                    local bit <const> = alphaMask[1 + k]
-                    if bit == 0 then
+                    local mask <const> = masks[1 + k]
+                    if mask == 0 then
                         a8 = 255
                         local abgr32 <const> = palAbgr32s[1 + idxMap]
                         r8 = abgr32 & 0xff
@@ -319,8 +319,8 @@ dlg:button {
                     local x <const> = k % bmpWidth
                     local yFlipped <const> = k // bmpWidth
 
-                    local bit <const> = alphaMask[1 + k]
-                    if bit == 0 then
+                    local mask <const> = masks[1 + k]
+                    if mask == 0 then
                         a8 = 255
                         local x3 <const> = x * 3
                         local offset <const> = dataOffset + 41 + yFlipped * capacityPerRow24
@@ -355,8 +355,8 @@ dlg:button {
                     local x <const> = k % bmpWidth
                     local yFlipped <const> = k // bmpWidth
 
-                    local bit <const> = alphaMask[1 + k]
-                    if bit == 0 then
+                    local mask <const> = masks[1 + k]
+                    if mask == 0 then
                         local k4 <const> = 4 * k
                         b8, g8, r8, a8 = strbyte(fileData,
                             dataOffset + 41 + k4,
