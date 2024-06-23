@@ -160,14 +160,19 @@ dlg:button {
         while h < icoHeaderEntries do
             h = h + 1
 
+            -- One problems causing invalid Aseprite icos is that the data
+            -- size and offset are miscalculated. One way to tell that a
+            -- file is Aseprite generated is that the bmpSize and dataSize
+            -- will be equal. In case it's ever worth recalculating the sizes,
+            -- they're left without the const modifier here.
             local icoWidth,
             icoHeight,
             numColors,
             reserved <const>,
             icoPlanes <const>,
             icoBpp <const>,
-            dataSize <const>,
-            dataOffset <const> = strunpack(
+            dataSize,
+            dataOffset = strunpack(
                 "B B B B <I2 <I2 <I4 <I4",
                 strsub(fileData, cursor + 1, cursor + 16))
 
