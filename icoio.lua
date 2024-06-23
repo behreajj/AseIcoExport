@@ -259,8 +259,8 @@ dlg:button {
                     local b8 <const>, g8 <const>, r8 <const> = strbyte(
                         fileData, dataOffset + 41 + j4, dataOffset + 43 + j4)
                     -- print(string.format(
-                    --     "r8: %03d, g8: %03d, b8: %03d, #%06X",
-                    --     r8, g8, b8,
+                    --     "j: %d, r8: %03d, g8: %03d, b8: %03d, #%06X",
+                    --     j, r8, g8, b8,
                     --     (r8 << 0x10 | g8 << 0x08 | b8)))
 
                     j = j + 1
