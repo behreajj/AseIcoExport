@@ -14,6 +14,10 @@ local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
+    -- TODO: Support cur file format? If so, you could create an array of
+    -- (x, y) hotspot coordinates just like there's a chosen palette. For slices,
+    -- the clamped pivot could be used, if it exists. Otherwise, default to
+    -- (w // 2, h // 2).
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -162,8 +166,8 @@ dlg:button {
             reserved <const>,
             icoPlanes <const>,
             icoBpp <const>,
-            dataSize,
-            dataOffset = strunpack(
+            dataSize <const>,
+            dataOffset <const> = strunpack(
                 "B B B B <I2 <I2 <I4 <I4",
                 strsub(fileData, cursor + 1, cursor + 16))
 
@@ -178,12 +182,14 @@ dlg:button {
             -- print(string.format("icoPlanes: %d, icoBpp: %d", icoPlanes, icoBpp))
             -- print(string.format("dataSize: %d, dataOffset: %d", dataSize, dataOffset))
 
-            local bmpHeaderSize,
-            bmpWidth,
-            bmpHeight2,
-            bmpPlanes,
-            bmpBpp,
-            _, _, _, _, _, _ = strunpack(
+            -- bmpSize is apparently not used vs. ico dataSize?
+            local bmpHeaderSize <const>,
+            bmpWidth <const>,
+            bmpHeight2 <const>,
+            bmpPlanes <const>,
+            bmpBpp <const>,
+            _ <const>, bmpSize <const>,
+            _ <const>, _ <const>, _ <const>, _ <const> = strunpack(
                 "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
                 strsub(fileData, dataOffset + 1, dataOffset + 40))
 
@@ -954,6 +960,8 @@ dlg:button {
         local icoOffset = 6 + lenChosenImages * 16
 
         -- Threshold for alpha at or below which mask is set to ignore.
+        -- If you wanted to support, e.g., 24 bit in the future, this would
+        -- determine when 1 bit alpha is set to opaque or transparent.
         local maskThreshold <const> = 0
 
         local k = 0
@@ -988,9 +996,9 @@ dlg:button {
                 h8,        -- 1 bytes, image height
                 0,         -- 1 bytes, color count, 0 if gt 256
                 0,         -- 1 bytes, reserved
-                1,         -- 2 bytes, number of planes
-                32,        -- 2 bytes, bits per pixel
-                icoSize,   -- 4 bytes, chunk size
+                1,         -- 2 bytes, number of planes (ico), x hotspot (cur)
+                32,        -- 2 bytes, bits per pixel (ico), y hotspot (cur)
+                icoSize,   -- 4 bytes, chunk size including header
                 icoOffset) -- 4 bytes, chunk offset
             entryHeaders[k] = entryHeader
             icoOffset = icoOffset + icoSize
@@ -1002,12 +1010,12 @@ dlg:button {
                 hImage2, -- 4 bytes, image height * 2
                 1,       -- 2 bytes, number of planes
                 32,      -- 2 bytes, bits per pixel
-                0,       -- 4 bytes
-                0,       -- 4 bytes
-                0,       -- 4 bytes
-                0,       -- 4 bytes
-                0,       -- 4 bytes
-                0)       -- 4 bytes
+                0,       -- 4 bytes, compression (unused)
+                0,       -- 4 bytes, chunk size excluding header (?)
+                0,       -- 4 bytes, x resolution (unused)
+                0,       -- 4 bytes, y resolution (unused)
+                0,       -- 4 bytes, used colors (unused)
+                0)       -- 4 bytes, important colors (unused)
 
             local srcByteStr <const> = image.bytes
             ---@type string[]
