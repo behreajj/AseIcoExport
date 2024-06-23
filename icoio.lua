@@ -205,6 +205,11 @@ dlg:button {
             if bmpWidth > wMax then wMax = bmpWidth end
             if bmpHeight > hMax then hMax = bmpHeight end
 
+            -- print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
+            -- print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
+            -- print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
+            -- print(string.format("bmpSize: %d", bmpSize))
+
             if bmpHeaderSize ~= 40 or reserved ~= 0 then
                 app.alert {
                     title = "Error",
@@ -216,11 +221,6 @@ dlg:button {
                 }
                 return
             end
-
-            -- print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
-            -- print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
-            -- print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
-            -- print(string.format("bmpSize: %d", bmpSize))
 
             -- Calculations for draw mask, with 1 bit per alpha.
             local areaImage <const> = bmpWidth * bmpHeight
