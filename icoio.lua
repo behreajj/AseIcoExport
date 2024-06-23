@@ -14,10 +14,11 @@ local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
-    -- TODO: Abstract 256x256 size limit to variables in defaults block.
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
+    wLimit = 256,
+    hLimit = 256
 }
 
 local dlg <const> = Dialog { title = "Ico Export" }
@@ -562,6 +563,9 @@ dlg:button {
             or defaults.frameTarget --[[@as string]]
         local exportFilepath <const> = args.exportFilepath --[[@as string]]
 
+        local wLimit <const> = defaults.wLimit
+        local hLimit <const> = defaults.hLimit
+
         if (not exportFilepath) or (#exportFilepath < 1) then
             app.alert {
                 title = "Error",
@@ -729,9 +733,9 @@ dlg:button {
                     local wCel <const> = imageCel.width
                     local hCel <const> = imageCel.height
                     local imageTrg = imageCel
-                    if wCel > 256 or hCel > 256 then
-                        local wBlit <const> = min(256, wCel)
-                        local hBlit <const> = min(256, hCel)
+                    if wCel > wLimit or hCel > hLimit then
+                        local wBlit <const> = min(wLimit, wCel)
+                        local hBlit <const> = min(hLimit, hCel)
                         local specBlit <const> = ImageSpec {
                             width = wBlit,
                             height = hBlit,
@@ -767,8 +771,8 @@ dlg:button {
             local wBounds <const> = max(1, abs(boundsMask.width))
             local hBounds <const> = max(1, abs(boundsMask.height))
 
-            local wBlit <const> = min(256, wBounds)
-            local hBlit <const> = min(256, hBounds)
+            local wBlit <const> = min(wLimit, wBounds)
+            local hBlit <const> = min(hLimit, hBounds)
             local specBlit <const> = ImageSpec {
                 width = wBlit,
                 height = hBlit,
@@ -869,8 +873,8 @@ dlg:button {
                 local hBounds <const> = max(1, abs(boundsSlice.height))
                 local blitOffset <const> = Point(-xtlBounds, -ytlBounds)
 
-                local wBlit <const> = min(256, wBounds)
-                local hBlit <const> = min(256, hBounds)
+                local wBlit <const> = min(wLimit, wBounds)
+                local hBlit <const> = min(hLimit, hBounds)
                 local specBlit <const> = ImageSpec {
                     width = wBlit,
                     height = hBlit,
@@ -897,8 +901,8 @@ dlg:button {
         else
             -- Default to "CANVAS"
             local pointZero <const> = Point(0, 0)
-            local wBlit <const> = min(256, wSprite)
-            local hBlit <const> = min(256, hSprite)
+            local wBlit <const> = min(wLimit, wSprite)
+            local hBlit <const> = min(hLimit, hSprite)
             local specBlit <const> = ImageSpec {
                 width = wBlit,
                 height = hBlit,
@@ -963,8 +967,8 @@ dlg:button {
             local hImage <const> = specImage.height
 
             -- Size 256 is written as 0.
-            local w8 <const> = wImage % 256
-            local h8 <const> = hImage % 256
+            local w8 <const> = wImage >= 256 and 0 or wImage
+            local h8 <const> = hImage >= 256 and 0 or hImage
             -- Bitmap height is 2x, because the transparency mask is written
             -- after the color mask.
             local hImage2 <const> = hImage + hImage
