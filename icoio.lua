@@ -144,7 +144,7 @@ dlg:button {
         local wMax = -2147483648
         local hMax = -2147483648
         local colorModeRgb <const> = ColorMode.RGB
-        local colorSpacesRgb <const> = ColorSpace { sRGB = false }
+        local colorSpaceNone <const> = ColorSpace { sRGB = false }
 
         ---@type table<integer, integer>
         local abgr32Dict <const> = {}
@@ -210,23 +210,9 @@ dlg:button {
             local areaImage <const> = bmpWidth * bmpHeight
             local dWordsPerRowMask <const> = ceil(bmpWidth / 32)
             local lenDWords <const> = dWordsPerRowMask * bmpHeight
-
-            -- Calculations for 8 bit indexed mode with 256 length palette.
-            local numColors4 <const> = numColors * 4
-            local dWordsPerRowIdx <const> = ceil(bmpWidth / 4)
-            local capacityPerRowIdx <const> = 4 * dWordsPerRowIdx
-
-            -- Calculations for 24 bit RGB.
-            local bmpWidth3 <const> = bmpWidth * 3
-            local dWordsPerRow24 <const> = ceil(bmpWidth3 / 4)
-            local capacityPerRow24 <const> = 4 * dWordsPerRow24
-
-            -- print(string.format("dWordsPerRowMask: %d, lenDWords: %d",
-            --     dWordsPerRowMask, lenDWords))
-            -- print(string.format("dWordsPerRow24: %d, capacityPerRow24: %d",
-            --     dWordsPerRow24, capacityPerRow24))
-
             local alphaMapOffset <const> = dataOffset + dataSize - lenDWords * 4
+            -- print(string.format("dWordsPerRowMask: %d, lenDWords: %d",
+            -- dWordsPerRowMask, lenDWords))
 
             ---@type integer[]
             local alphaMask <const> = {}
@@ -246,12 +232,11 @@ dlg:button {
             end
             -- print(tconcat(alphaMask, ", "))
 
-            ---@type string[]
-            local byteStrs <const> = {}
+            ---@type integer[]
+            local palAbgr32s <const> = {}
+            local numColors4 <const> = numColors * 4
 
-            if bmpBpp == 8 then
-                ---@type integer[]
-                local palAbgr32s <const> = {}
+            if numColors > 0 and numColors <= 256 then
                 local j = 0
                 while j < numColors do
                     local j4 <const> = j * 4
@@ -265,10 +250,17 @@ dlg:button {
                     j = j + 1
                     local palAbgr32 <const> = 0xff000000 | b8 << 0x10 | g8 << 0x08 | r8
                     palAbgr32s[j] = palAbgr32
-                    -- Alternatively, could place elements in sprite palette
-                    -- per their appearance here.
-                    -- abgr32Dict[palAbgr32] = j
                 end
+            end
+
+            ---@type string[]
+            local byteStrs <const> = {}
+
+            if bmpBpp == 8 then
+                local dWordsPerRowIdx <const> = ceil(bmpWidth / 4)
+                local capacityPerRowIdx <const> = 4 * dWordsPerRowIdx
+                -- print(string.format("dWordsPerRowIdx: %d, capacityPerRowIdx: %d",
+                --     dWordsPerRowIdx, capacityPerRowIdx))
 
                 local k = 0
                 while k < areaImage do
@@ -311,6 +303,12 @@ dlg:button {
             elseif bmpBpp == 24 then
                 -- Wikipedia: "24 bit images are stored as B G R triples
                 -- but are not DWORD aligned."
+
+                local bmpWidth3 <const> = bmpWidth * 3
+                local dWordsPerRow24 <const> = ceil(bmpWidth3 / 4)
+                local capacityPerRow24 <const> = 4 * dWordsPerRow24
+                -- print(string.format("dWordsPerRow24: %d, capacityPerRow24: %d",
+                --     dWordsPerRow24, capacityPerRow24))
 
                 -- TODO: See above, can this be refactored to be a single loop?
 
@@ -402,7 +400,7 @@ dlg:button {
                 colorMode = colorModeRgb,
                 transparentColor = 0
             }
-            imageSpec.colorSpace = colorSpacesRgb
+            imageSpec.colorSpace = colorSpaceNone
             local image <const> = Image(imageSpec)
             image.bytes = tconcat(byteStrs)
             images[#images + 1] = image
@@ -424,7 +422,7 @@ dlg:button {
             colorMode = colorModeRgb,
             transparentColor = 0
         }
-        spriteSpec.colorSpace = colorSpacesRgb
+        spriteSpec.colorSpace = colorSpaceNone
         local sprite <const> = Sprite(spriteSpec)
 
         app.transaction("Set sprite file name", function()
