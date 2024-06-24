@@ -299,7 +299,8 @@ dlg:button {
 
         local fileExt <const> = app.fs.fileExtension(importFilepath)
         local fileExtLc <const> = string.lower(fileExt)
-        if fileExtLc ~= "ico" then
+        local isIco <const> = fileExtLc == "ico"
+        if (not isIco) then
             app.alert {
                 title = "Error",
                 text = "File extension must be ico."
@@ -821,7 +822,8 @@ dlg:button {
 
         local fileExt <const> = app.fs.fileExtension(exportFilepath)
         local fileExtLc <const> = string.lower(fileExt)
-        if fileExtLc ~= "ico" then
+        local isIco <const> = fileExtLc == "ico"
+        if (not isIco) then
             app.alert {
                 title = "Error",
                 text = "File extension must be ico."
