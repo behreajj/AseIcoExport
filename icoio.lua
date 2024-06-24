@@ -23,6 +23,236 @@ local defaults <const> = {
     hLimit = 256
 }
 
+---@param chosenImages Image[]
+---@param chosenPalettes Palette[]
+---@param colorModeSprite ColorMode
+---@param alphaIndexSprite integer
+---@return string
+local function writeIco(
+    chosenImages,
+    chosenPalettes,
+    colorModeSprite,
+    alphaIndexSprite)
+    -- Cache methods.
+    local ceil <const> = math.ceil
+    local strbyte <const> = string.byte
+    local strpack <const> = string.pack
+    local tconcat <const> = table.concat
+
+    local lenChosenImages = #chosenImages
+
+    ---@type string[]
+    local entryHeaders <const> = {}
+
+    ---@type string[]
+    local imageEntries <const> = {}
+
+    -- The overall header is 6 bytes,
+    -- each ico entry is 16 bytes.
+    local icoOffset = 6 + lenChosenImages * 16
+
+    -- Threshold for alpha at or below which mask is set to ignore.
+    -- If you wanted to support, e.g., 24 bit in the future, this would
+    -- determine when 1 bit alpha is set to opaque or transparent.
+    local maskThreshold <const> = 0
+
+    local k = 0
+    while k < lenChosenImages do
+        k = k + 1
+        local image <const> = chosenImages[k]
+        local palette <const> = chosenPalettes[k]
+
+        local specImage <const> = image.spec
+        local wImage <const> = specImage.width
+        local hImage <const> = specImage.height
+
+        -- Size 256 is written as 0.
+        local w8 <const> = wImage >= 256 and 0 or wImage
+        local h8 <const> = hImage >= 256 and 0 or hImage
+        -- Bitmap height is 2x, because the transparency mask is written
+        -- after the color mask.
+        local hImage2 <const> = hImage + hImage
+        local areaWrite <const> = wImage * hImage
+
+        -- To support indexed color mode, numColors would have to be set
+        -- to the palette length.
+        local dWordsPerRow <const> = ceil(wImage / 32)
+        local lenDWords <const> = dWordsPerRow * hImage
+        local icoSize <const> = 40
+            + areaWrite * 4 -- 4 bytes per pixel
+            + lenDWords * 4 -- 4 bytes per dword
+
+        local entryHeader <const> = strpack(
+            "B B B B <I2 <I2 <I4 <I4",
+            w8,        -- 1 bytes, image width
+            h8,        -- 1 bytes, image height
+            0,         -- 1 bytes, color count, 0 if gt 256
+            0,         -- 1 bytes, reserved
+            1,         -- 2 bytes, number of planes (ico), x hotspot (cur)
+            32,        -- 2 bytes, bits per pixel (ico), y hotspot (cur)
+            icoSize,   -- 4 bytes, chunk size including header
+            icoOffset) -- 4 bytes, chunk offset
+        entryHeaders[k] = entryHeader
+        icoOffset = icoOffset + icoSize
+
+        local bmpHeader <const> = strpack(
+            "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
+            40,      -- 4 bytes, header size
+            wImage,  -- 4 bytes, image width
+            hImage2, -- 4 bytes, image height * 2
+            1,       -- 2 bytes, number of planes
+            32,      -- 2 bytes, bits per pixel
+            0,       -- 4 bytes, compression (unused)
+            0,       -- 4 bytes, chunk size excluding header (?)
+            0,       -- 4 bytes, x resolution (unused)
+            0,       -- 4 bytes, y resolution (unused)
+            0,       -- 4 bytes, used colors (unused)
+            0)       -- 4 bytes, important colors (unused)
+
+        local srcByteStr <const> = image.bytes
+        ---@type string[]
+        local trgColorBytes <const> = {}
+
+        -- Wikipedia: "The mask has to align to a DWORD (32 bits) and
+        -- should be packed with 0s. A 0 pixel means 'the corresponding
+        -- pixel in the image will be drawn' and a 1 means 'ignore this
+        -- pixel'."
+
+        ---@type integer[]
+        local dWords <const> = {}
+        local p = 0
+        while p < lenDWords do
+            p = p + 1
+            dWords[p] = 0
+        end
+
+        -- In bitmap format, y axis is from bottom to top.
+        if colorModeSprite == ColorMode.RGB then
+            local m = 0
+            while m < areaWrite do
+                local x <const> = m % wImage
+                local y <const> = m // wImage
+
+                local yFlipped <const> = hImage - 1 - y
+                local n <const> = yFlipped * wImage + x
+                local n4 <const> = n * 4
+
+                local r8, g8, b8, a8 <const> = strbyte(
+                    srcByteStr, 1 + n4, 4 + n4)
+                if a8 <= maskThreshold then
+                    r8 = 0
+                    g8 = 0
+                    b8 = 0
+                end
+
+                trgColorBytes[1 + m] = strpack("B B B B", b8, g8, r8, a8)
+
+                local draw <const> = a8 <= maskThreshold and 1 or 0
+                local xDWord <const> = x // 32
+                local xBit <const> = 31 - x % 32
+                local idxDWord <const> = y * dWordsPerRow + xDWord
+                local dWord <const> = dWords[1 + idxDWord]
+                dWords[1 + idxDWord] = dWord | (draw << xBit)
+
+                m = m + 1
+            end
+        elseif colorModeSprite == ColorMode.GRAY then
+            local m = 0
+            while m < areaWrite do
+                local x <const> = m % wImage
+                local y <const> = m // wImage
+
+                local yFlipped <const> = hImage - 1 - y
+                local n <const> = yFlipped * wImage + x
+                local n2 <const> = n * 2
+
+                local v8, a8 <const> = strbyte(srcByteStr, 1 + n2, 2 + n2)
+                if a8 <= maskThreshold then
+                    v8 = 0
+                end
+
+                trgColorBytes[1 + m] = strpack("B B B B", v8, v8, v8, a8)
+
+                local draw <const> = a8 <= maskThreshold and 1 or 0
+                local xDWord <const> = x // 32
+                local xBit <const> = 31 - x % 32
+                local idxDWord <const> = y * dWordsPerRow + xDWord
+                local dWord <const> = dWords[1 + idxDWord]
+                dWords[1 + idxDWord] = dWord | (draw << xBit)
+
+                m = m + 1
+            end
+        elseif colorModeSprite == ColorMode.INDEXED then
+            local m = 0
+            while m < areaWrite do
+                local x <const> = m % wImage
+                local y <const> = m // wImage
+
+                local yFlipped <const> = hImage - 1 - y
+                local n <const> = yFlipped * wImage + x
+
+                local r8 = 0
+                local g8 = 0
+                local b8 = 0
+                local a8 = 0
+
+                local idx <const> = strbyte(srcByteStr, 1 + n)
+                if idx ~= alphaIndexSprite then
+                    local aseColor <const> = palette:getColor(idx)
+                    a8 = aseColor.alpha
+                    if a8 > maskThreshold then
+                        r8 = aseColor.red
+                        g8 = aseColor.green
+                        b8 = aseColor.blue
+                    end
+                end
+
+                trgColorBytes[1 + m] = strpack("B B B B", b8, g8, r8, a8)
+
+                local draw <const> = a8 <= maskThreshold and 1 or 0
+                local xDWord <const> = x // 32
+                local xBit <const> = 31 - x % 32
+                local idxDWord <const> = y * dWordsPerRow + xDWord
+                local dWord <const> = dWords[1 + idxDWord]
+                dWords[1 + idxDWord] = dWord | (draw << xBit)
+
+                m = m + 1
+            end
+        end
+
+        ---@type string[]
+        local maskBytes <const> = {}
+        local q = 0
+        while q < lenDWords do
+            q = q + 1
+            -- This uses the reverse byte order due to how mask words
+            -- were written above.
+            maskBytes[q] = strpack(">I4", dWords[q])
+        end
+
+        -- To support indexed color mode, the palette would be written
+        -- after the bmp header.
+        local imageEntry <const> = tconcat({
+            bmpHeader,
+            tconcat(trgColorBytes),
+            tconcat(maskBytes)
+        })
+        imageEntries[k] = imageEntry
+    end
+
+    local icoHeader <const> = strpack(
+        "<I2 <I2 <I2",
+        0, -- reserved
+        1, -- 1 is for icon, 2 is for cursor
+        lenChosenImages)
+    local finalString <const> = tconcat({
+        icoHeader,
+        tconcat(entryHeaders),
+        tconcat(imageEntries)
+    })
+    return finalString
+end
+
 local dlg <const> = Dialog { title = "Ico Export" }
 
 -- dlg:separator { id = "importSep" }
@@ -609,10 +839,8 @@ dlg:button {
 
         -- Cache methods used in loops.
         local abs <const> = math.abs
-        local ceil <const> = math.ceil
         local max <const> = math.max
         local min <const> = math.min
-        local strbyte <const> = string.byte
         local strpack <const> = string.pack
         local strsub <const> = string.sub
         local tconcat <const> = table.concat
@@ -957,215 +1185,12 @@ dlg:button {
         end
         if binFile == nil then return end
 
-        ---@type string[]
-        local entryHeaders <const> = {}
-        ---@type string[]
-        local imageEntries <const> = {}
-
-        -- The overall header is 6 bytes,
-        -- each ico entry is 16 bytes.
-        local icoOffset = 6 + lenChosenImages * 16
-
-        -- Threshold for alpha at or below which mask is set to ignore.
-        -- If you wanted to support, e.g., 24 bit in the future, this would
-        -- determine when 1 bit alpha is set to opaque or transparent.
-        local maskThreshold <const> = 0
-
-        local k = 0
-        while k < lenChosenImages do
-            k = k + 1
-            local image <const> = chosenImages[k]
-            local palette <const> = chosenPalettes[k]
-
-            local specImage <const> = image.spec
-            local wImage <const> = specImage.width
-            local hImage <const> = specImage.height
-
-            -- Size 256 is written as 0.
-            local w8 <const> = wImage >= 256 and 0 or wImage
-            local h8 <const> = hImage >= 256 and 0 or hImage
-            -- Bitmap height is 2x, because the transparency mask is written
-            -- after the color mask.
-            local hImage2 <const> = hImage + hImage
-            local areaWrite <const> = wImage * hImage
-
-            -- To support indexed color mode, numColors would have to be set
-            -- to the palette length.
-            local dWordsPerRow <const> = ceil(wImage / 32)
-            local lenDWords <const> = dWordsPerRow * hImage
-            local icoSize <const> = 40
-                + areaWrite * 4 -- 4 bytes per pixel
-                + lenDWords * 4 -- 4 bytes per dword
-
-            local entryHeader <const> = strpack(
-                "B B B B <I2 <I2 <I4 <I4",
-                w8,        -- 1 bytes, image width
-                h8,        -- 1 bytes, image height
-                0,         -- 1 bytes, color count, 0 if gt 256
-                0,         -- 1 bytes, reserved
-                1,         -- 2 bytes, number of planes (ico), x hotspot (cur)
-                32,        -- 2 bytes, bits per pixel (ico), y hotspot (cur)
-                icoSize,   -- 4 bytes, chunk size including header
-                icoOffset) -- 4 bytes, chunk offset
-            entryHeaders[k] = entryHeader
-            icoOffset = icoOffset + icoSize
-
-            local bmpHeader <const> = strpack(
-                "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
-                40,      -- 4 bytes, header size
-                wImage,  -- 4 bytes, image width
-                hImage2, -- 4 bytes, image height * 2
-                1,       -- 2 bytes, number of planes
-                32,      -- 2 bytes, bits per pixel
-                0,       -- 4 bytes, compression (unused)
-                0,       -- 4 bytes, chunk size excluding header (?)
-                0,       -- 4 bytes, x resolution (unused)
-                0,       -- 4 bytes, y resolution (unused)
-                0,       -- 4 bytes, used colors (unused)
-                0)       -- 4 bytes, important colors (unused)
-
-            local srcByteStr <const> = image.bytes
-            ---@type string[]
-            local trgColorBytes <const> = {}
-
-            -- Wikipedia: "The mask has to align to a DWORD (32 bits) and
-            -- should be packed with 0s. A 0 pixel means 'the corresponding
-            -- pixel in the image will be drawn' and a 1 means 'ignore this
-            -- pixel'."
-
-            ---@type integer[]
-            local dWords <const> = {}
-            local p = 0
-            while p < lenDWords do
-                p = p + 1
-                dWords[p] = 0
-            end
-
-            -- In bitmap format, y axis is from bottom to top.
-            if colorModeSprite == ColorMode.RGB then
-                local m = 0
-                while m < areaWrite do
-                    local x <const> = m % wImage
-                    local y <const> = m // wImage
-
-                    local yFlipped <const> = hImage - 1 - y
-                    local n <const> = yFlipped * wImage + x
-                    local n4 <const> = n * 4
-
-                    local r8, g8, b8, a8 <const> = strbyte(
-                        srcByteStr, 1 + n4, 4 + n4)
-                    if a8 <= maskThreshold then
-                        r8 = 0
-                        g8 = 0
-                        b8 = 0
-                    end
-
-                    trgColorBytes[1 + m] = strpack("B B B B", b8, g8, r8, a8)
-
-                    local draw <const> = a8 <= maskThreshold and 1 or 0
-                    local xDWord <const> = x // 32
-                    local xBit <const> = 31 - x % 32
-                    local idxDWord <const> = y * dWordsPerRow + xDWord
-                    local dWord <const> = dWords[1 + idxDWord]
-                    dWords[1 + idxDWord] = dWord | (draw << xBit)
-
-                    m = m + 1
-                end
-            elseif colorModeSprite == ColorMode.GRAY then
-                local m = 0
-                while m < areaWrite do
-                    local x <const> = m % wImage
-                    local y <const> = m // wImage
-
-                    local yFlipped <const> = hImage - 1 - y
-                    local n <const> = yFlipped * wImage + x
-                    local n2 <const> = n * 2
-
-                    local v8, a8 <const> = strbyte(srcByteStr, 1 + n2, 2 + n2)
-                    if a8 <= maskThreshold then
-                        v8 = 0
-                    end
-
-                    trgColorBytes[1 + m] = strpack("B B B B", v8, v8, v8, a8)
-
-                    local draw <const> = a8 <= maskThreshold and 1 or 0
-                    local xDWord <const> = x // 32
-                    local xBit <const> = 31 - x % 32
-                    local idxDWord <const> = y * dWordsPerRow + xDWord
-                    local dWord <const> = dWords[1 + idxDWord]
-                    dWords[1 + idxDWord] = dWord | (draw << xBit)
-
-                    m = m + 1
-                end
-            elseif colorModeSprite == ColorMode.INDEXED then
-                local m = 0
-                while m < areaWrite do
-                    local x <const> = m % wImage
-                    local y <const> = m // wImage
-
-                    local yFlipped <const> = hImage - 1 - y
-                    local n <const> = yFlipped * wImage + x
-
-                    local r8 = 0
-                    local g8 = 0
-                    local b8 = 0
-                    local a8 = 0
-
-                    local idx <const> = strbyte(srcByteStr, 1 + n)
-                    if idx ~= alphaIndexSprite then
-                        local aseColor <const> = palette:getColor(idx)
-                        a8 = aseColor.alpha
-                        if a8 > maskThreshold then
-                            r8 = aseColor.red
-                            g8 = aseColor.green
-                            b8 = aseColor.blue
-                        end
-                    end
-
-                    trgColorBytes[1 + m] = strpack("B B B B", b8, g8, r8, a8)
-
-                    local draw <const> = a8 <= maskThreshold and 1 or 0
-                    local xDWord <const> = x // 32
-                    local xBit <const> = 31 - x % 32
-                    local idxDWord <const> = y * dWordsPerRow + xDWord
-                    local dWord <const> = dWords[1 + idxDWord]
-                    dWords[1 + idxDWord] = dWord | (draw << xBit)
-
-                    m = m + 1
-                end
-            end
-
-            ---@type string[]
-            local maskBytes <const> = {}
-            local q = 0
-            while q < lenDWords do
-                q = q + 1
-                -- This uses the reverse byte order due to how mask words
-                -- were written above.
-                maskBytes[q] = strpack(">I4", dWords[q])
-            end
-
-            -- To support indexed color mode, the palette would be written
-            -- after the bmp header.
-            local imageEntry <const> = tconcat({
-                bmpHeader,
-                tconcat(trgColorBytes),
-                tconcat(maskBytes)
-            })
-            imageEntries[k] = imageEntry
-        end
-
-        local icoHeader <const> = strpack(
-            "<I2 <I2 <I2",
-            0, -- reserved
-            1, -- 1 is for icon, 2 is for cursor
-            lenChosenImages)
-        local finalString <const> = tconcat({
-            icoHeader,
-            tconcat(entryHeaders),
-            tconcat(imageEntries)
-        })
-        binFile:write(finalString)
+        local icoString <const> = writeIco(
+            chosenImages,
+            chosenPalettes,
+            colorModeSprite,
+            alphaIndexSprite)
+        binFile:write(icoString)
         binFile:close()
 
         app.alert {
