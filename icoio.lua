@@ -650,6 +650,7 @@ dlg:button {
                 title = "Error",
                 text = "The size of the new sprite is invalid."
             }
+            return
         end
 
         local spriteSpec <const> = ImageSpec {
