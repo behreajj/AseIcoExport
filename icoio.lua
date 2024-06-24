@@ -9,15 +9,13 @@
     https://devblogs.microsoft.com/oldnewthing/20101022-00/?p=12473
 ]]
 
-local fileExts <const> = { "ico" }
+local importFileExts <const> = { "ico" }
+local exportFileExts <const> = { "ico" }
 local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
-    -- TODO: Support cur file format? If so, you could create an array of
-    -- (x, y) hotspot coordinates just like there's a chosen palette. For slices,
-    -- the clamped pivot could be used, if it exists. Otherwise, default to
-    -- (w // 2, h // 2).
+    -- TODO: Look into support for ani?
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -42,7 +40,7 @@ dlg:newrow { always = false }
 dlg:file {
     id = "importFilepath",
     label = "Open:",
-    filetypes = fileExts,
+    filetypes = importFileExts,
     open = true,
     focus = false,
 }
@@ -549,7 +547,7 @@ dlg:newrow { always = false }
 dlg:file {
     id = "exportFilepath",
     label = "Save:",
-    filetypes = fileExts,
+    filetypes = exportFileExts,
     save = true,
     focus = true,
 }
