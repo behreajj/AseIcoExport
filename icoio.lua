@@ -95,6 +95,8 @@ local function writeIco(
         entryHeaders[k] = entryHeader
         icoOffset = icoOffset + icoSize
 
+        -- For pels per meter discussion, see
+        -- https://stackoverflow.com/questions/17550545/bmp-image-header-bixpelspermeter
         local bmpHeader <const> = strpack(
             "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
             40,      -- 4 bytes, header size
