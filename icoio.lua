@@ -831,12 +831,26 @@ dlg:button {
             return
         end
 
+        ---@type Slice[]
+        local chosenSlices <const> = {}
+
         -- Prevent uncommitted selection transformation (drop pixels) or
         -- display of sprite slices in context bar from raising an error.
         local appTool <const> = app.tool
         if appTool then
             local toolName <const> = appTool.id
             if toolName == "slice" then
+                local appRange <const> = app.range
+                if appRange.sprite == activeSprite then
+                    local rangeSlices <const> = appRange.slices
+                    local lenRangeSlices <const> = #rangeSlices
+                    local g = 0
+                    while g < lenRangeSlices do
+                        g = g + 1
+                        chosenSlices[g] = rangeSlices[g]
+                    end
+                end
+
                 app.tool = "hand"
             end
         end
@@ -1093,9 +1107,19 @@ dlg:button {
                 chosenPalettes[j] = palette
             end
         elseif visualTarget == "SLICES" then
-            local slicesSprite <const> = activeSprite.slices
-            local lenSlicesSprite <const> = #slicesSprite
-            if lenSlicesSprite <= 0 then
+            local lenChosenSlices = #chosenSlices
+            if lenChosenSlices <= 0 then
+                local spriteSlices <const> = activeSprite.slices
+                local lenSpriteSlices <const> = #spriteSlices
+                local g = 0
+                while g < lenSpriteSlices do
+                    g = g + 1
+                    chosenSlices[g] = spriteSlices[g]
+                end
+                lenChosenSlices = #chosenSlices
+            end
+
+            if lenChosenSlices <= 0 then
                 app.alert {
                     title = "Error",
                     text = "Sprite does not contain any slices."
@@ -1108,9 +1132,9 @@ dlg:button {
             -- Make the slices loop the outer loop in case a slice's frames
             -- become accessible through API in the future.
             local h = 0
-            while h < lenSlicesSprite do
+            while h < lenChosenSlices do
                 h = h + 1
-                local slice <const> = slicesSprite[h]
+                local slice <const> = chosenSlices[h]
                 local boundsSlice <const> = slice.bounds or defaultBounds
                 local xtlBounds <const> = boundsSlice.x
                 local ytlBounds <const> = boundsSlice.y
