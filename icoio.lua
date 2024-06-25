@@ -18,10 +18,13 @@ local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
-    -- TODO: Look into support for ani?
+    -- TODO: Look into support for ani? Start by reading instead of writing...
+    -- TODO: Abstract ico read method to its own function
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
+    xHotSpot = 50,
+    yHotSpot = 50,
     wLimit = 256,
     hLimit = 256
 }
@@ -45,40 +48,13 @@ local function nextPowerOf2(x)
     return 0
 end
 
----@param pivotPreset integer
----@param wMask integer
----@param hMask integer
----@return integer
----@return integer
-local function pivotPresetToCoords(pivotPreset, wMask, hMask)
-    if pivotPreset == 0 then
-        return 0, 0
-    elseif pivotPreset == 1 then
-        return wMask // 2, 0
-    elseif pivotPreset == 2 then
-        return wMask - 1, 0
-    elseif pivotPreset == 3 then
-        return 0, hMask // 2
-    elseif pivotPreset == 4 then
-        return wMask // 2, hMask // 2
-    elseif pivotPreset == 5 then
-        return wMask - 1, hMask // 2
-    elseif pivotPreset == 6 then
-        return 0, hMask - 1
-    elseif pivotPreset == 7 then
-        return wMask // 2, hMask - 1
-    elseif pivotPreset == 8 then
-        return wMask - 1, hMask - 1
-    end
-    return wMask // 2, hMask // 2
-end
-
 ---@param chosenImages Image[]
 ---@param chosenPalettes Palette[]
 ---@param colorModeSprite ColorMode
 ---@param alphaIndexSprite integer
 ---@param extIsCur boolean
----@param pivotPreset integer
+---@param xHotSpot number
+---@param yHotSpot number
 ---@return string
 local function writeIco(
     chosenImages,
@@ -86,9 +62,11 @@ local function writeIco(
     colorModeSprite,
     alphaIndexSprite,
     extIsCur,
-    pivotPreset)
+    xHotSpot,
+    yHotSpot)
     -- Cache methods.
     local ceil <const> = math.ceil
+    local floor <const> = math.floor
     local strbyte <const> = string.byte
     local strpack <const> = string.pack
     local tconcat <const> = table.concat
@@ -136,11 +114,11 @@ local function writeIco(
             + areaWrite * 4 -- 4 bytes per pixel
             + lenDWords * 4 -- 4 bytes per dword
 
-        local xHotSpot = 1  -- or bit planes for ico
-        local yHotSpot = 32 -- or bits per pixel for ico
+        local xHsWrite = 1  -- or bit planes for ico
+        local yHsWrite = 32 -- or bits per pixel for ico
         if extIsCur then
-            xHotSpot, yHotSpot = pivotPresetToCoords(
-                pivotPreset, wImage, hImage)
+            xHsWrite = floor(0.5 + xHotSpot * (wImage - 1.0))
+            yHsWrite = floor(0.5 + yHotSpot * (hImage - 1.0))
         end
 
         local entryHeader <const> = strpack(
@@ -149,8 +127,8 @@ local function writeIco(
             h8,        -- 1 bytes, image height
             0,         -- 1 bytes, color count, 0 if gt 256
             0,         -- 1 bytes, reserved
-            xHotSpot,  -- 2 bytes, number of planes (ico), x hotspot (cur)
-            yHotSpot,  -- 2 bytes, bits per pixel (ico), y hotspot (cur)
+            xHsWrite,  -- 2 bytes, number of planes (ico), x hotspot (cur)
+            yHsWrite,  -- 2 bytes, bits per pixel (ico), y hotspot (cur)
             icoSize,   -- 4 bytes, chunk size including header
             icoOffset) -- 4 bytes, chunk offset
         entryHeaders[k] = entryHeader
@@ -907,6 +885,25 @@ dlg:combobox {
 
 dlg:newrow { always = false }
 
+dlg:slider {
+    id = "xHotSpot",
+    label = "Hot Spot:",
+    min = 0,
+    max = 100,
+    value = defaults.xHotSpot,
+    focus = false,
+}
+
+dlg:slider {
+    id = "yHotSpot",
+    min = 0,
+    max = 100,
+    value = defaults.yHotSpot,
+    focus = false,
+}
+
+dlg:newrow { always = false }
+
 dlg:file {
     id = "exportFilepath",
     label = "Save:",
@@ -937,6 +934,10 @@ dlg:button {
             or defaults.visualTarget --[[@as string]]
         local frameTarget <const> = args.frameTarget
             or defaults.frameTarget --[[@as string]]
+        local xHotSpot100 <const> = args.xHotSpot
+            or defaults.xHotSpot --[[@as integer]]
+        local yHotSpot100 <const> = args.yHotSpot
+            or defaults.yHotSpot --[[@as integer]]
         local exportFilepath <const> = args.exportFilepath --[[@as string]]
 
         local wLimit <const> = defaults.wLimit
@@ -1341,16 +1342,8 @@ dlg:button {
         end
         if binFile == nil then return end
 
-        local maskPivot = 0
-        local appPrefs <const> = app.preferences
-        if appPrefs then
-            local maskPrefs <const> = appPrefs.selection
-            if maskPrefs then
-                if maskPrefs.pivot_position then
-                    maskPivot = maskPrefs.pivot_position --[[@as integer]]
-                end
-            end
-        end
+        local xHotSpot <const> = xHotSpot100 * 0.01
+        local yHotSpot <const> = yHotSpot100 * 0.01
 
         local icoString <const> = writeIco(
             chosenImages,
@@ -1358,7 +1351,8 @@ dlg:button {
             colorModeSprite,
             alphaIndexSprite,
             extIsCur,
-            maskPivot)
+            xHotSpot,
+            yHotSpot)
         binFile:write(icoString)
         binFile:close()
 
