@@ -19,17 +19,31 @@ local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
     -- TODO: Look into support for ani?
-    -- TODO: Maybe Irfanview needs files to be nearest power of 2 to open...
-    -- If so, add option to enlarge images to nearest greater pot?
-    -- TODO: That might also mean you can support export cur again.
-    -- In which case you'd have to convert clamped slice pivots to hotspots
-    -- or or use transform pivot or w//2 and h//2 as a default.
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
     wLimit = 256,
     hLimit = 256
 }
+
+---@param x integer input value
+---@return integer
+local function nextPowerOf2(x)
+    if x ~= 0 then
+        local xSgn = 1
+        local xAbs = x
+        if x < 0 then
+            xAbs = -x
+            xSgn = -1
+        end
+        local p = 1
+        while p < xAbs do
+            p = p << 1
+        end
+        return p * xSgn
+    end
+    return 0
+end
 
 ---@param pivotPreset integer
 ---@param wMask integer
@@ -1106,20 +1120,20 @@ dlg:button {
                     local wCel <const> = imageCel.width
                     local hCel <const> = imageCel.height
                     local imageTrg = imageCel
-                    if wCel > wLimit or hCel > hLimit then
-                        local wBlit <const> = min(wLimit, wCel)
-                        local hBlit <const> = min(hLimit, hCel)
-                        local specBlit <const> = ImageSpec {
-                            width = wBlit,
-                            height = hBlit,
-                            colorMode = colorModeSprite,
-                            transparentColor = alphaIndexSprite
-                        }
-                        specBlit.colorSpace = colorSpaceSprite
-                        local imageBlit <const> = Image(specBlit)
-                        imageBlit:drawImage(imageCel, pointZero, 255, blendModeSrc)
-                        imageTrg = imageBlit
-                    end
+                    -- if wCel > wLimit or hCel > hLimit then
+                    local wBlit <const> = min(wLimit, nextPowerOf2(wCel))
+                    local hBlit <const> = min(hLimit, nextPowerOf2(hCel))
+                    local specBlit <const> = ImageSpec {
+                        width = wBlit,
+                        height = hBlit,
+                        colorMode = colorModeSprite,
+                        transparentColor = alphaIndexSprite
+                    }
+                    specBlit.colorSpace = colorSpaceSprite
+                    local imageBlit <const> = Image(specBlit)
+                    imageBlit:drawImage(imageCel, pointZero, 255, blendModeSrc)
+                    imageTrg = imageBlit
+                    -- end
                     chosenImages[#chosenImages + 1] = imageTrg
 
                     local palIdx <const> = chosenFrIdx <= lenSpritePalettes
@@ -1144,8 +1158,8 @@ dlg:button {
             local wBounds <const> = max(1, abs(boundsMask.width))
             local hBounds <const> = max(1, abs(boundsMask.height))
 
-            local wBlit <const> = min(wLimit, wBounds)
-            local hBlit <const> = min(hLimit, hBounds)
+            local wBlit <const> = min(wLimit, nextPowerOf2(wBounds))
+            local hBlit <const> = min(hLimit, nextPowerOf2(hBounds))
             local specBlit <const> = ImageSpec {
                 width = wBlit,
                 height = hBlit,
@@ -1256,8 +1270,8 @@ dlg:button {
                 local hBounds <const> = max(1, abs(boundsSlice.height))
                 local blitOffset <const> = Point(-xtlBounds, -ytlBounds)
 
-                local wBlit <const> = min(wLimit, wBounds)
-                local hBlit <const> = min(hLimit, hBounds)
+                local wBlit <const> = min(wLimit, nextPowerOf2(wBounds))
+                local hBlit <const> = min(hLimit, nextPowerOf2(hBounds))
                 local specBlit <const> = ImageSpec {
                     width = wBlit,
                     height = hBlit,
@@ -1284,8 +1298,8 @@ dlg:button {
         else
             -- Default to "CANVAS"
             local pointZero <const> = Point(0, 0)
-            local wBlit <const> = min(wLimit, wSprite)
-            local hBlit <const> = min(hLimit, hSprite)
+            local wBlit <const> = min(wLimit, nextPowerOf2(wSprite))
+            local hBlit <const> = min(hLimit, nextPowerOf2(hSprite))
             local specBlit <const> = ImageSpec {
                 width = wBlit,
                 height = hBlit,
