@@ -6,7 +6,9 @@ This an [Aseprite](https://www.aseprite.org/) script to export `cur`s and `ico`s
 
 Aseprite can load and save `ico`s, but the files are unreadable by other graphics editors, and do not support alpha even when they should.
 
-Export is limited to to the size 256 by 256 pixels. Image dimensions are rounded to the next greatest power of two. The file is formatted as 32 bit RGBA regardless of the sprite's color mode (grayscale, indexed or RGB). Each frame is stored as a separate entry in the same file. For `cur` files, the hotspot is based on the selection tool's [rotation pivot](https://aseprite.org/docs/rotate#rotation-pivot).
+Export is limited to to the size 256 by 256 pixels. Image dimensions are rounded to the next greatest power of two. The file is formatted as 32 bit RGBA regardless of the sprite's color mode (grayscale, indexed or RGB). Each frame is stored as a separate entry in the same file.
+
+For `cur` files, on export, the hotspot is based on the selection tool's [rotation pivot](https://aseprite.org/docs/rotate#rotation-pivot). On import, a [slice](https://aseprite.org/docs/slices)'s pivot is used to represent the hotspot.
 
 Import is limited to 8 bit indexed with 256 color palette; 24 bit RGB with 1 bit alpha; and 32 bit RGBA. The opened sprite is always in RGB color mode, regardless of the file format. Files containing compressed png data are not supported. *This script does not import Aseprite generated files.*
 
