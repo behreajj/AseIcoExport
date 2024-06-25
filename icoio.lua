@@ -7,15 +7,23 @@
     https://devblogs.microsoft.com/oldnewthing/20101019-00/?p=12503
     https://devblogs.microsoft.com/oldnewthing/20101021-00/?p=12483
     https://devblogs.microsoft.com/oldnewthing/20101022-00/?p=12473
+
+    Ani format
+    https://www.informit.com/articles/article.aspx?p=1189080&seqNum=3
 ]]
 
-local importFileExts <const> = { "ico" }
+local importFileExts <const> = { "cur", "ico" }
 local exportFileExts <const> = { "ico" }
 local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
     -- TODO: Look into support for ani?
+    -- TODO: Maybe Irfanview needs files to be nearest power of 2 to open...
+    -- If so, add option to enlarge images to nearest greater pot?
+    -- TODO: That might also mean you can support export cur again.
+    -- In which case you'd have to convert clamped slice pivots to hotspots
+    -- or use w//2 and h//2 as a default.
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -299,11 +307,12 @@ dlg:button {
 
         local fileExt <const> = app.fs.fileExtension(importFilepath)
         local fileExtLc <const> = string.lower(fileExt)
-        local isIco <const> = fileExtLc == "ico"
-        if (not isIco) then
+        local extIsCur <const> = fileExtLc == "cur"
+        local extIsIco <const> = fileExtLc == "ico"
+        if (not extIsCur) and (not extIsIco) then
             app.alert {
                 title = "Error",
-                text = "File extension must be ico."
+                text = "File extension must be cur or ico."
             }
             return
         end
@@ -349,19 +358,23 @@ dlg:button {
         binFile:close()
 
         -- Cache methods used in loops.
+        local floor <const> = math.floor
         local ceil <const> = math.ceil
         local min <const> = math.min
         local strbyte <const> = string.byte
+        local strfmt <const> = string.format
         local strpack <const> = string.pack
         local strsub <const> = string.sub
         local strunpack <const> = string.unpack
         local tconcat <const> = table.concat
 
         local icoHeaderType <const> = strunpack("<I2", strsub(fileData, 3, 4))
-        if icoHeaderType ~= 1 then
+        local typeIsIco = icoHeaderType == 1
+        local typeIsCur = icoHeaderType == 2
+        if (not typeIsIco) and (not typeIsCur) then
             app.alert {
                 title = "Error",
-                text = "Only icons are supported."
+                text = "Only icons and cursors are supported."
             }
             return
         end
@@ -377,6 +390,11 @@ dlg:button {
 
         ---@type Image[]
         local images <const> = {}
+        ---@type integer[]
+        local xHotSpots <const> = {}
+        ---@type integer[]
+        local yHotSpots <const> = {}
+
         local wMax = -2147483648
         local hMax = -2147483648
         local colorModeRgb <const> = ColorMode.RGB
@@ -397,12 +415,13 @@ dlg:button {
             -- will be equal. In GIMP the bmpSize will be zero. In case it's
             -- ever worth recalculating the sizes, they don't use the
             -- const modifier.
+
             local icoWidth,
             icoHeight,
             numColors,
             reserved <const>,
-            icoPlanes <const>,
-            icoBpp <const>,
+            xHotSpot <const>, -- or bit planes for icos
+            yHotSpot <const>, -- or bits per pixel for icos
             dataSize,
             dataOffset = strunpack(
                 "B B B B <I2 <I2 <I4 <I4",
@@ -639,7 +658,10 @@ dlg:button {
             imageSpec.colorSpace = colorSpaceNone
             local image <const> = Image(imageSpec)
             image.bytes = tconcat(byteStrs)
-            images[#images + 1] = image
+
+            images[h] = image
+            xHotSpots[h] = xHotSpot
+            yHotSpots[h] = yHotSpot
 
             cursor = cursor + 16
             -- print(string.format("cursor: %d\n", cursor))
@@ -750,6 +772,60 @@ dlg:button {
             end
         end
 
+        if typeIsCur then
+            local r01Orig <const> = 1.0 ^ 2.2
+            local g01Orig <const> = 0.0 ^ 2.2
+            local b01Orig <const> = 0.0 ^ 2.2
+
+            local r01Dest <const> = 0.0 ^ 2.2
+            local g01Dest <const> = 1.0 ^ 2.2
+            local b01Dest <const> = 0.0 ^ 2.2
+
+            local nToFac <const> = lenImages > 1
+                and 1.0 / (lenImages - 1.0)
+                or 0.0
+            local expInvert <const> = 1.0 / 2.2
+
+            app.transaction("Create slices", function()
+                local n = 0
+                while n < lenImages do
+                    local t <const> = n * nToFac
+                    local u <const> = 1.0 - t
+
+                    n = n + 1
+                    local image <const> = images[n]
+                    local xHotSpot <const> = xHotSpots[n]
+                    local yHotSpot <const> = yHotSpots[n]
+
+                    local rMixLin = u * r01Orig + t * r01Dest
+                    local gMixLin = u * g01Orig + t * g01Dest
+                    local bMixLin = u * b01Orig + t * b01Dest
+
+                    -- Convert mixed color from linear to standard.
+                    local rMixStd = rMixLin ^ expInvert
+                    local gMixStd = gMixLin ^ expInvert
+                    local bMixStd = bMixLin ^ expInvert
+
+                    local specImage <const> = image.spec
+                    local wImage <const> = specImage.width
+                    local hImage <const> = specImage.height
+
+                    local sliceBounds = Rectangle(0, 0, wImage, hImage)
+                    local slice <const> = sprite:newSlice(sliceBounds)
+
+                    slice.name = strfmt("Cursor %d", n)
+                    slice.color = Color {
+                        r = floor(rMixStd * 255.0 + 0.5),
+                        g = floor(gMixStd * 255.0 + 0.5),
+                        b = floor(bMixStd * 255.0 + 0.5),
+                        a = 255
+                    }
+                    slice.pivot = Point(xHotSpot, yHotSpot)
+                    slice.center = sliceBounds
+                end
+            end)
+        end
+
         app.layer = layer
         app.frame = sprite.frames[1]
         app.sprite = sprite
@@ -823,8 +899,8 @@ dlg:button {
 
         local fileExt <const> = app.fs.fileExtension(exportFilepath)
         local fileExtLc <const> = string.lower(fileExt)
-        local isIco <const> = fileExtLc == "ico"
-        if (not isIco) then
+        local extIsIco <const> = fileExtLc == "ico"
+        if (not extIsIco) then
             app.alert {
                 title = "Error",
                 text = "File extension must be ico."
