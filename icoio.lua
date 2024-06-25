@@ -13,7 +13,7 @@
 ]]
 
 local importFileExts <const> = { "cur", "ico" }
-local exportFileExts <const> = { "ico" }
+local exportFileExts <const> = { "cur", "ico" }
 local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
@@ -23,7 +23,7 @@ local defaults <const> = {
     -- If so, add option to enlarge images to nearest greater pot?
     -- TODO: That might also mean you can support export cur again.
     -- In which case you'd have to convert clamped slice pivots to hotspots
-    -- or use w//2 and h//2 as a default.
+    -- or or use transform pivot or w//2 and h//2 as a default.
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -31,16 +31,48 @@ local defaults <const> = {
     hLimit = 256
 }
 
+---@param pivotPreset integer
+---@param wMask integer
+---@param hMask integer
+---@return integer
+---@return integer
+local function pivotPresetToCoords(pivotPreset, wMask, hMask)
+    if pivotPreset == 0 then
+        return 0, 0
+    elseif pivotPreset == 1 then
+        return wMask // 2, 0
+    elseif pivotPreset == 2 then
+        return wMask - 1, 0
+    elseif pivotPreset == 3 then
+        return 0, hMask // 2
+    elseif pivotPreset == 4 then
+        return wMask // 2, hMask // 2
+    elseif pivotPreset == 5 then
+        return wMask - 1, hMask // 2
+    elseif pivotPreset == 6 then
+        return 0, hMask - 1
+    elseif pivotPreset == 7 then
+        return wMask // 2, hMask - 1
+    elseif pivotPreset == 8 then
+        return wMask - 1, hMask - 1
+    end
+    return wMask // 2, hMask // 2
+end
+
 ---@param chosenImages Image[]
 ---@param chosenPalettes Palette[]
 ---@param colorModeSprite ColorMode
 ---@param alphaIndexSprite integer
+---@param extIsCur boolean
+---@param pivotPreset integer
 ---@return string
 local function writeIco(
     chosenImages,
     chosenPalettes,
     colorModeSprite,
-    alphaIndexSprite)
+    alphaIndexSprite,
+    extIsCur,
+    pivotPreset)
     -- Cache methods.
     local ceil <const> = math.ceil
     local strbyte <const> = string.byte
@@ -90,14 +122,21 @@ local function writeIco(
             + areaWrite * 4 -- 4 bytes per pixel
             + lenDWords * 4 -- 4 bytes per dword
 
+        local xHotSpot = 1  -- or bit planes for ico
+        local yHotSpot = 32 -- or bits per pixel for ico
+        if extIsCur then
+            xHotSpot, yHotSpot = pivotPresetToCoords(
+                pivotPreset, wImage, hImage)
+        end
+
         local entryHeader <const> = strpack(
             "B B B B <I2 <I2 <I4 <I4",
             w8,        -- 1 bytes, image width
             h8,        -- 1 bytes, image height
             0,         -- 1 bytes, color count, 0 if gt 256
             0,         -- 1 bytes, reserved
-            1,         -- 2 bytes, number of planes (ico), x hotspot (cur)
-            32,        -- 2 bytes, bits per pixel (ico), y hotspot (cur)
+            xHotSpot,  -- 2 bytes, number of planes (ico), x hotspot (cur)
+            yHotSpot,  -- 2 bytes, bits per pixel (ico), y hotspot (cur)
             icoSize,   -- 4 bytes, chunk size including header
             icoOffset) -- 4 bytes, chunk offset
         entryHeaders[k] = entryHeader
@@ -252,8 +291,8 @@ local function writeIco(
 
     local icoHeader <const> = strpack(
         "<I2 <I2 <I2",
-        0, -- reserved
-        1, -- 1 is for icon, 2 is for cursor
+        0,                   -- reserved
+        extIsCur and 2 or 1, -- 1 is for icon, 2 is for cursor
         lenChosenImages)
     local finalString <const> = tconcat({
         icoHeader,
@@ -899,11 +938,12 @@ dlg:button {
 
         local fileExt <const> = app.fs.fileExtension(exportFilepath)
         local fileExtLc <const> = string.lower(fileExt)
+        local extIsCur <const> = fileExtLc == "cur"
         local extIsIco <const> = fileExtLc == "ico"
-        if (not extIsIco) then
+        if (not extIsCur) and (not extIsIco) then
             app.alert {
                 title = "Error",
-                text = "File extension must be ico."
+                text = "File extension must be cur or ico."
             }
             return
         end
@@ -1287,11 +1327,24 @@ dlg:button {
         end
         if binFile == nil then return end
 
+        local maskPivot = 0
+        local appPrefs <const> = app.preferences
+        if appPrefs then
+            local maskPrefs <const> = appPrefs.selection
+            if maskPrefs then
+                if maskPrefs.pivot_position then
+                    maskPivot = maskPrefs.pivot_position --[[@as integer]]
+                end
+            end
+        end
+
         local icoString <const> = writeIco(
             chosenImages,
             chosenPalettes,
             colorModeSprite,
-            alphaIndexSprite)
+            alphaIndexSprite,
+            extIsCur,
+            maskPivot)
         binFile:write(icoString)
         binFile:close()
 
