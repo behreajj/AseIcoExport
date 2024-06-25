@@ -421,11 +421,6 @@ dlg:button {
 
         ---@type Image[]
         local images <const> = {}
-        ---@type integer[]
-        local xHotSpots <const> = {}
-        ---@type integer[]
-        local yHotSpots <const> = {}
-
         local wMax = -2147483648
         local hMax = -2147483648
         local colorModeRgb <const> = ColorMode.RGB
@@ -691,8 +686,6 @@ dlg:button {
             image.bytes = tconcat(byteStrs)
 
             images[h] = image
-            xHotSpots[h] = xHotSpot
-            yHotSpots[h] = yHotSpot
 
             cursor = cursor + 16
             -- print(string.format("cursor: %d\n", cursor))
@@ -801,60 +794,6 @@ dlg:button {
                     thumbPrefs.overlay_enabled = true
                 end
             end
-        end
-
-        if typeIsCur then
-            local r01Orig <const> = 1.0 ^ 2.2
-            local g01Orig <const> = 0.0 ^ 2.2
-            local b01Orig <const> = 0.0 ^ 2.2
-
-            local r01Dest <const> = 0.0 ^ 2.2
-            local g01Dest <const> = 1.0 ^ 2.2
-            local b01Dest <const> = 0.0 ^ 2.2
-
-            local nToFac <const> = lenImages > 1
-                and 1.0 / (lenImages - 1.0)
-                or 0.0
-            local expInvert <const> = 1.0 / 2.2
-
-            app.transaction("Create slices", function()
-                local n = 0
-                while n < lenImages do
-                    local t <const> = n * nToFac
-                    local u <const> = 1.0 - t
-
-                    n = n + 1
-                    local image <const> = images[n]
-                    local xHotSpot <const> = xHotSpots[n]
-                    local yHotSpot <const> = yHotSpots[n]
-
-                    local rMixLin = u * r01Orig + t * r01Dest
-                    local gMixLin = u * g01Orig + t * g01Dest
-                    local bMixLin = u * b01Orig + t * b01Dest
-
-                    -- Convert mixed color from linear to standard.
-                    local rMixStd = rMixLin ^ expInvert
-                    local gMixStd = gMixLin ^ expInvert
-                    local bMixStd = bMixLin ^ expInvert
-
-                    local specImage <const> = image.spec
-                    local wImage <const> = specImage.width
-                    local hImage <const> = specImage.height
-
-                    local sliceBounds = Rectangle(0, 0, wImage, hImage)
-                    local slice <const> = sprite:newSlice(sliceBounds)
-
-                    slice.name = strfmt("Cursor %d", n)
-                    slice.color = Color {
-                        r = floor(rMixStd * 255.0 + 0.5),
-                        g = floor(gMixStd * 255.0 + 0.5),
-                        b = floor(bMixStd * 255.0 + 0.5),
-                        a = 255
-                    }
-                    slice.pivot = Point(xHotSpot, yHotSpot)
-                    slice.center = sliceBounds
-                end
-            end)
         end
 
         app.layer = layer

@@ -12,8 +12,6 @@ Import is limited to 8 bit indexed with 256 color palette; 24 bit RGB with 1 bit
 
 To read more about the format, see the [Wikipedia](https://en.wikipedia.org/wiki/ICO_(file_format)) entry and "[The evolution of the ICO file format](https://devblogs.microsoft.com/oldnewthing/20101018-00/?p=12513)" by Raymond Chen.
 
-For `cur` files, on export, the hotspot is based on the selection tool's [rotation pivot](https://aseprite.org/docs/rotate#rotation-pivot). On import, a [slice](https://aseprite.org/docs/slices)'s pivot is used to represent the hotspot.
-
 *This script was developed and tested in Aseprite version 1.3.7 on Windows 10.*
 
 ## Download
