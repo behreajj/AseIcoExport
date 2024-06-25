@@ -1055,9 +1055,6 @@ dlg:button {
             local pointZero <const> = Point(0, 0)
             local blendModeSrc <const> = BlendMode.SRC
 
-            -- TODO: Would it be worth going through all frames in a preliminary
-            -- loop and finding the minimum AABB around all images across frames
-            -- then offseting image blit by that?
             local j = 0
             while j < lenChosenFrIdcs do
                 j = j + 1
