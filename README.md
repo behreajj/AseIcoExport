@@ -8,11 +8,11 @@ Aseprite can load and save `ico`s, but the files are unreadable by other graphic
 
 Export is limited to to the size 256 by 256 pixels. Image dimensions are rounded to the next greatest power of two. The file is formatted as 32 bit RGBA regardless of the sprite's color mode (grayscale, indexed or RGB). Each frame is stored as a separate entry in the same file.
 
-For `cur` files, on export, the hotspot is based on the selection tool's [rotation pivot](https://aseprite.org/docs/rotate#rotation-pivot). On import, a [slice](https://aseprite.org/docs/slices)'s pivot is used to represent the hotspot.
-
 Import is limited to 8 bit indexed with 256 color palette; 24 bit RGB with 1 bit alpha; and 32 bit RGBA. The opened sprite is always in RGB color mode, regardless of the file format. Files containing compressed png data are not supported. *This script does not import Aseprite generated files.*
 
 To read more about the format, see the [Wikipedia](https://en.wikipedia.org/wiki/ICO_(file_format)) entry and "[The evolution of the ICO file format](https://devblogs.microsoft.com/oldnewthing/20101018-00/?p=12513)" by Raymond Chen.
+
+For `cur` files, on export, the hotspot is based on the selection tool's [rotation pivot](https://aseprite.org/docs/rotate#rotation-pivot). On import, a [slice](https://aseprite.org/docs/slices)'s pivot is used to represent the hotspot.
 
 *This script was developed and tested in Aseprite version 1.3.7 on Windows 10.*
 
