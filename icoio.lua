@@ -19,7 +19,6 @@ local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
     -- TODO: Look into support for ani? Start by reading instead of writing...
-    -- TODO: Abstract ico read method to its own function
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -29,7 +28,7 @@ local defaults <const> = {
     hLimit = 256
 }
 
----@param x integer input value
+---@param x integer
 ---@return integer
 local function nextPowerOf2(x)
     if x ~= 0 then
@@ -46,6 +45,333 @@ local function nextPowerOf2(x)
         return p * xSgn
     end
     return 0
+end
+
+---@param fileData string
+---@return Image[] images
+---@return integer wMax
+---@return integer hMax
+---@return integer[] uniqueColors
+---@return string[]|nil errMsg
+local function readIcoCur(fileData)
+    ---@type Image[]
+    local images <const> = {}
+    local wMax = -2147483648
+    local hMax = -2147483648
+    ---@type integer[]
+    local uniqueColors <const> = {}
+
+    -- Cache methods used in loops.
+    local ceil <const> = math.ceil
+    local min <const> = math.min
+    local strbyte <const> = string.byte
+    local strfmt <const> = string.format
+    local strpack <const> = string.pack
+    local strsub <const> = string.sub
+    local strunpack <const> = string.unpack
+    local tconcat <const> = table.concat
+
+    local icoHeaderType <const> = strunpack("<I2", strsub(fileData, 3, 4))
+    local typeIsIco = icoHeaderType == 1
+    local typeIsCur = icoHeaderType == 2
+    if (not typeIsIco) and (not typeIsCur) then
+        return images, wMax, hMax, uniqueColors,
+            { "Only icons and cursors are supported." }
+    end
+
+    local icoHeaderEntries <const> = strunpack("<I2", strsub(fileData, 5, 6))
+    if icoHeaderEntries <= 0 then
+        return images, wMax, hMax, uniqueColors,
+            { "The file contained no icon image entries." }
+    end
+
+    ---@type table<integer, integer>
+    local abgr32Dict <const> = {} -- TODO: May have to return this... or the array
+    local dictCursor = 0
+    local colorModeRgb <const> = ColorMode.RGB
+    local colorSpaceNone <const> = ColorSpace { sRGB = false }
+
+    local cursor = 6
+    local h = 0
+    while h < icoHeaderEntries do
+        h = h + 1
+
+        -- One problem causing invalid Aseprite icos is that the data
+        -- size and offset don't match the content length. One way to tell
+        -- that a file is Aseprite generated is that the bmpSize and
+        -- dataSize will be equal. For GIMP icos, the bmpSize will be zero.
+        -- In case it's ever worth recalculating the sizes, they don't use
+        -- the const modifier.
+
+        local icoWidth,
+        icoHeight,
+        numColors,
+        reserved <const>,
+        xHotSpot <const>, -- or bit planes for icos
+        yHotSpot <const>, -- or bits per pixel for icos
+        dataSize,
+        dataOffset = strunpack(
+            "B B B B <I2 <I2 <I4 <I4",
+            strsub(fileData, cursor + 1, cursor + 16))
+
+        if icoWidth == 0 then icoWidth = 256 end
+        if icoHeight == 0 then icoHeight = 256 end
+        if numColors == 0 then numColors = 256 end
+
+        -- print(h)
+        -- print(string.format("icoWidth: %d, icoHeight: %d", icoWidth, icoHeight))
+        -- print(string.format("numColors: %d", numColors))
+        -- print(string.format("reserved: %d", reserved))
+        -- if typeIsCur then
+        --     print(string.format("xHotSpot: %d, yHotSpot: %d", xHotSpot, yHotSpot))
+        -- else
+        --     print(string.format("icoPlanes: %d, icoBpp: %d", xHotSpot, yHotSpot))
+        -- end
+        -- print(string.format("dataSize: %d, dataOffset: %d", dataSize, dataOffset))
+
+        -- bmpSize is apparently not used vs. ico dataSize?
+        local bmpHeaderSize <const>,
+        bmpWidth <const>,
+        bmpHeight2 <const>,
+        bmpPlanes <const>,
+        bmpBpp <const>,
+        _ <const>, bmpSize <const>,
+        _ <const>, _ <const>, _ <const>, _ <const> = strunpack(
+            "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
+            strsub(fileData, dataOffset + 1, dataOffset + 40))
+
+        -- Calculate the height here in case you want to try to verify the
+        -- data size.
+        local bmpHeight <const> = bmpHeight2 // 2 --[[@as integer]]
+        if bmpWidth > wMax then wMax = bmpWidth end
+        if bmpHeight > hMax then hMax = bmpHeight end
+
+        -- print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
+        -- print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
+        -- print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
+        -- print(string.format("bmpSize: %d", bmpSize))
+
+        if bmpHeaderSize ~= 40 or reserved ~= 0 then
+            return images, wMax, hMax, uniqueColors, {
+                "Found a malformed header when parsing the file.",
+                "This importer does not support Aseprite made icos,",
+                "nor does it support icos with compressed pngs."
+            }
+        end
+
+        -- Calculations for draw mask, with 1 bit per alpha.
+        local areaImage <const> = bmpWidth * bmpHeight
+        local dWordsPerRowMask <const> = ceil(bmpWidth / 32)
+        local lenDWords <const> = dWordsPerRowMask * bmpHeight
+        local alphaMapOffset <const> = dataOffset + dataSize - lenDWords * 4
+
+        -- print(string.format("dWordsPerRowMask: %d, lenDWords: %d, alphaMapOffset: %d",
+        --     dWordsPerRowMask, lenDWords, alphaMapOffset))
+
+        ---@type integer[]
+        local masks <const> = {}
+        local i = 0
+        while i < areaImage do
+            local x <const> = i % bmpWidth
+            local y <const> = i // bmpWidth
+            local xDWord <const> = x // 32
+            local xBit <const> = 31 - x % 32
+            local idxDWord <const> = 4 * (y * dWordsPerRowMask + xDWord)
+            local dWord <const> = strunpack(">I4", strsub(fileData,
+                alphaMapOffset + 1 + idxDWord,
+                alphaMapOffset + 4 + idxDWord))
+            local mask <const> = (dWord >> xBit) & 0x1
+            masks[1 + i] = mask
+            i = i + 1
+        end
+        -- print(tconcat(alphaMask, ", "))
+
+        ---@type integer[]
+        local palAbgr32s <const> = {}
+        local numColors4 <const> = numColors * 4
+
+        if bmpBpp <= 8 and numColors > 0 then
+            local j = 0
+            while j < numColors do
+                local j4 <const> = j * 4
+                local b8 <const>, g8 <const>, r8 <const> = strbyte(
+                    fileData, dataOffset + 41 + j4, dataOffset + 43 + j4)
+                -- print(string.format(
+                --     "j: %d, r8: %03d, g8: %03d, b8: %03d, #%06X",
+                --     j, r8, g8, b8,
+                --     (r8 << 0x10 | g8 << 0x08 | b8)))
+
+                j = j + 1
+                local palAbgr32 <const> = 0xff000000 | b8 << 0x10 | g8 << 0x08 | r8
+                palAbgr32s[j] = palAbgr32
+            end
+        end
+
+        ---@type string[]
+        local byteStrs <const> = {}
+
+        if bmpBpp == 8 then
+            local dWordsPerRowIdx <const> = ceil(bmpWidth / 4)
+            local capacityPerRowIdx <const> = 4 * dWordsPerRowIdx
+            -- print(string.format("dWordsPerRowIdx: %d, capacityPerRowIdx: %d",
+            --     dWordsPerRowIdx, capacityPerRowIdx))
+
+            local k = 0
+            while k < areaImage do
+                local a8 = 0
+                local b8 = 0
+                local g8 = 0
+                local r8 = 0
+
+                local x <const> = k % bmpWidth
+                local yFlipped <const> = k // bmpWidth
+
+                local mask <const> = masks[1 + k]
+                if mask == 0 then
+                    a8 = 255
+                    local idxMap <const> = strbyte(fileData,
+                        dataOffset + 41 + numColors4
+                        + yFlipped * capacityPerRowIdx + x)
+
+                    -- print(string.format("idxMap: %d", idxMap))
+
+                    local abgr32 <const> = palAbgr32s[1 + idxMap]
+                    r8 = abgr32 & 0xff
+                    g8 = (abgr32 >> 0x08) & 0xff
+                    b8 = (abgr32 >> 0x10) & 0xff
+                end
+
+                -- print(string.format(
+                --     "mask: %d, r8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
+                --     mask, r8, g8, b8, a8,
+                --     (r8 << 0x10 | g8 << 0x08 | b8)))
+
+                local y <const> = bmpHeight - 1 - yFlipped
+                local idxAse <const> = y * bmpWidth + x
+                byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
+
+                local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
+                if not abgr32Dict[abgr32] then
+                    dictCursor = dictCursor + 1
+                    abgr32Dict[abgr32] = dictCursor
+                end
+
+                k = k + 1
+            end
+        elseif bmpBpp == 24 then
+            -- Wikipedia: "24 bit images are stored as B G R triples
+            -- but are not DWORD aligned."
+            local bmpWidth3 <const> = bmpWidth * 3
+            local dWordsPerRow24 <const> = ceil(bmpWidth3 / 4)
+            local capacityPerRow24 <const> = 4 * dWordsPerRow24
+            -- print(string.format("dWordsPerRow24: %d, capacityPerRow24: %d",
+            --     dWordsPerRow24, capacityPerRow24))
+
+            local k = 0
+            while k < areaImage do
+                local a8 = 0
+                local b8 = 0
+                local g8 = 0
+                local r8 = 0
+
+                local x <const> = k % bmpWidth
+                local yFlipped <const> = k // bmpWidth
+
+                local mask <const> = masks[1 + k]
+                if mask == 0 then
+                    a8 = 255
+                    local x3 <const> = x * 3
+                    local offset <const> = dataOffset + 41 + yFlipped * capacityPerRow24
+                    b8, g8, r8 = strbyte(fileData, offset + x3, offset + 2 + x3)
+                end
+
+                -- print(string.format(
+                --     "mask: %d, r8: %03d, g8: %03d, b8: %03d, #%06X",
+                --     mask, r8, g8, b8,
+                --     (r8 << 0x10 | g8 << 0x08 | b8)))
+
+                local y <const> = bmpHeight - 1 - yFlipped
+                local idxAse <const> = y * bmpWidth + x
+                byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
+
+                local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
+                if not abgr32Dict[abgr32] then
+                    dictCursor = dictCursor + 1
+                    abgr32Dict[abgr32] = dictCursor
+                end
+
+                k = k + 1
+            end
+        elseif bmpBpp == 32 then
+            local k = 0
+            while k < areaImage do
+                local a8 = 0
+                local b8 = 0
+                local g8 = 0
+                local r8 = 0
+
+                local x <const> = k % bmpWidth
+                local yFlipped <const> = k // bmpWidth
+
+                local mask <const> = masks[1 + k]
+                if mask == 0 then
+                    local k4 <const> = 4 * k
+                    b8, g8, r8, a8 = strbyte(fileData,
+                        dataOffset + 41 + k4,
+                        dataOffset + 44 + k4)
+                end
+
+                -- print(string.format(
+                --     "mask: %d, r8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
+                --     mask, r8, g8, b8, a8,
+                --     (r8 << 0x10 | g8 << 0x08 | b8)))
+
+                local y <const> = bmpHeight - 1 - yFlipped
+                local idxAse <const> = y * bmpWidth + x
+                byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
+
+                local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
+                if not abgr32Dict[abgr32] then
+                    dictCursor = dictCursor + 1
+                    abgr32Dict[abgr32] = dictCursor
+                end
+
+                k = k + 1
+            end
+        end
+
+        if #byteStrs <= 0 then
+            return images, wMax, hMax, uniqueColors,
+                { "Found malformed data when parsing the file." }
+        end
+
+        local imageSpec <const> = ImageSpec {
+            width = bmpWidth,
+            height = bmpHeight,
+            colorMode = colorModeRgb,
+            transparentColor = 0
+        }
+        imageSpec.colorSpace = colorSpaceNone
+        local image <const> = Image(imageSpec)
+        image.bytes = tconcat(byteStrs)
+
+        images[h] = image
+
+        cursor = cursor + 16
+        -- print(string.format("cursor: %d\n", cursor))
+    end
+
+    -- Ensure that alpha mask is at zero.
+    abgr32Dict[0] = -1
+    for abgr32, _ in pairs(abgr32Dict) do
+        uniqueColors[#uniqueColors + 1] = abgr32
+    end
+
+    table.sort(uniqueColors, function(a, b)
+        return abgr32Dict[a] < abgr32Dict[b]
+    end)
+
+    return images, wMax, hMax, uniqueColors, nil
 end
 
 ---@param chosenImages Image[]
@@ -388,307 +714,15 @@ dlg:button {
         local fileData <const> = binFile:read("a")
         binFile:close()
 
-        -- Cache methods used in loops.
-        local floor <const> = math.floor
-        local ceil <const> = math.ceil
-        local min <const> = math.min
-        local strbyte <const> = string.byte
-        local strfmt <const> = string.format
-        local strpack <const> = string.pack
-        local strsub <const> = string.sub
-        local strunpack <const> = string.unpack
-        local tconcat <const> = table.concat
+        local images <const>,
+        wMax <const>,
+        hMax <const>,
+        uniqueColors <const>,
+        errors <const> = readIcoCur(fileData)
 
-        local icoHeaderType <const> = strunpack("<I2", strsub(fileData, 3, 4))
-        local typeIsIco = icoHeaderType == 1
-        local typeIsCur = icoHeaderType == 2
-        if (not typeIsIco) and (not typeIsCur) then
-            app.alert {
-                title = "Error",
-                text = "Only icons and cursors are supported."
-            }
+        if errors ~= nil then
+            app.alert { title = "Error", text = errors }
             return
-        end
-
-        local icoHeaderEntries <const> = strunpack("<I2", strsub(fileData, 5, 6))
-        if icoHeaderEntries <= 0 then
-            app.alert {
-                title = "Error",
-                text = "The file contained no icon image entries."
-            }
-            return
-        end
-
-        ---@type Image[]
-        local images <const> = {}
-        local wMax = -2147483648
-        local hMax = -2147483648
-        local colorModeRgb <const> = ColorMode.RGB
-        local colorSpaceNone <const> = ColorSpace { sRGB = false }
-
-        ---@type table<integer, integer>
-        local abgr32Dict <const> = {}
-        local dictCursor = 0
-
-        local cursor = 6
-        local h = 0
-        while h < icoHeaderEntries do
-            h = h + 1
-
-            -- One problem causing invalid Aseprite icos is that the data
-            -- size and offset are miscalculated. One way to tell that a
-            -- file is Aseprite generated is that the bmpSize and dataSize
-            -- will be equal. In GIMP the bmpSize will be zero. In case it's
-            -- ever worth recalculating the sizes, they don't use the
-            -- const modifier.
-
-            local icoWidth,
-            icoHeight,
-            numColors,
-            reserved <const>,
-            xHotSpot <const>, -- or bit planes for icos
-            yHotSpot <const>, -- or bits per pixel for icos
-            dataSize,
-            dataOffset = strunpack(
-                "B B B B <I2 <I2 <I4 <I4",
-                strsub(fileData, cursor + 1, cursor + 16))
-
-            if icoWidth == 0 then icoWidth = 256 end
-            if icoHeight == 0 then icoHeight = 256 end
-            if numColors == 0 then numColors = 256 end
-
-            -- print(h)
-            -- print(string.format("icoWidth: %d, icoHeight: %d", icoWidth, icoHeight))
-            -- print(string.format("numColors: %d", numColors))
-            -- print(string.format("reserved: %d", reserved))
-            -- print(string.format("icoPlanes: %d, icoBpp: %d", icoPlanes, icoBpp))
-            -- print(string.format("dataSize: %d, dataOffset: %d", dataSize, dataOffset))
-
-            -- bmpSize is apparently not used vs. ico dataSize?
-            local bmpHeaderSize <const>,
-            bmpWidth <const>,
-            bmpHeight2 <const>,
-            bmpPlanes <const>,
-            bmpBpp <const>,
-            _ <const>, bmpSize <const>,
-            _ <const>, _ <const>, _ <const>, _ <const> = strunpack(
-                "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
-                strsub(fileData, dataOffset + 1, dataOffset + 40))
-
-            -- Calculate the height here in case you want to try to verify the
-            -- data size.
-            local bmpHeight <const> = bmpHeight2 // 2 --[[@as integer]]
-            if bmpWidth > wMax then wMax = bmpWidth end
-            if bmpHeight > hMax then hMax = bmpHeight end
-
-            -- print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
-            -- print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
-            -- print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
-            -- print(string.format("bmpSize: %d", bmpSize))
-
-            if bmpHeaderSize ~= 40 or reserved ~= 0 then
-                app.alert {
-                    title = "Error",
-                    text = {
-                        "Found a malformed header when parsing the file.",
-                        "This importer does not support Aseprite made icos,",
-                        "nor does it support icos with compressed pngs."
-                    }
-                }
-                return
-            end
-
-            -- Calculations for draw mask, with 1 bit per alpha.
-            local areaImage <const> = bmpWidth * bmpHeight
-            local dWordsPerRowMask <const> = ceil(bmpWidth / 32)
-            local lenDWords <const> = dWordsPerRowMask * bmpHeight
-            local alphaMapOffset <const> = dataOffset + dataSize - lenDWords * 4
-            -- print(string.format("dWordsPerRowMask: %d, lenDWords: %d",
-            -- dWordsPerRowMask, lenDWords))
-
-            ---@type integer[]
-            local masks <const> = {}
-            local i = 0
-            while i < areaImage do
-                local x <const> = i % bmpWidth
-                local y <const> = i // bmpWidth
-                local xDWord <const> = x // 32
-                local xBit <const> = 31 - x % 32
-                local idxDWord <const> = 4 * (y * dWordsPerRowMask + xDWord)
-                local dWord <const> = strunpack(">I4", strsub(fileData,
-                    alphaMapOffset + 1 + idxDWord,
-                    alphaMapOffset + 4 + idxDWord))
-                local mask <const> = (dWord >> xBit) & 0x1
-                masks[1 + i] = mask
-                i = i + 1
-            end
-            -- print(tconcat(alphaMask, ", "))
-
-            ---@type integer[]
-            local palAbgr32s <const> = {}
-            local numColors4 <const> = numColors * 4
-
-            if bmpBpp <= 8 and numColors > 0 then
-                local j = 0
-                while j < numColors do
-                    local j4 <const> = j * 4
-                    local b8 <const>, g8 <const>, r8 <const> = strbyte(
-                        fileData, dataOffset + 41 + j4, dataOffset + 43 + j4)
-                    -- print(string.format(
-                    --     "j: %d, r8: %03d, g8: %03d, b8: %03d, #%06X",
-                    --     j, r8, g8, b8,
-                    --     (r8 << 0x10 | g8 << 0x08 | b8)))
-
-                    j = j + 1
-                    local palAbgr32 <const> = 0xff000000 | b8 << 0x10 | g8 << 0x08 | r8
-                    palAbgr32s[j] = palAbgr32
-                end
-            end
-
-            ---@type string[]
-            local byteStrs <const> = {}
-
-            if bmpBpp == 8 then
-                local dWordsPerRowIdx <const> = ceil(bmpWidth / 4)
-                local capacityPerRowIdx <const> = 4 * dWordsPerRowIdx
-                -- print(string.format("dWordsPerRowIdx: %d, capacityPerRowIdx: %d",
-                --     dWordsPerRowIdx, capacityPerRowIdx))
-
-                local k = 0
-                while k < areaImage do
-                    local a8 = 0
-                    local b8 = 0
-                    local g8 = 0
-                    local r8 = 0
-
-                    local x <const> = k % bmpWidth
-                    local yFlipped <const> = k // bmpWidth
-
-                    local mask <const> = masks[1 + k]
-                    if mask == 0 then
-                        a8 = 255
-                        local idxMap <const> = strbyte(fileData,
-                            dataOffset + 41 + numColors4
-                            + yFlipped * capacityPerRowIdx + x)
-                        local abgr32 <const> = palAbgr32s[1 + idxMap]
-                        r8 = abgr32 & 0xff
-                        g8 = (abgr32 >> 0x08) & 0xff
-                        b8 = (abgr32 >> 0x10) & 0xff
-                    end
-
-                    -- print(string.format(
-                    --     "bit: %d, idx: %d, r8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
-                    --     bit, idx, r8, g8, b8, a8,
-                    --     (r8 << 0x10 | g8 << 0x08 | b8)))
-
-                    local y <const> = bmpHeight - 1 - yFlipped
-                    local idxAse <const> = y * bmpWidth + x
-                    byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
-
-                    local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
-                    if not abgr32Dict[abgr32] then
-                        dictCursor = dictCursor + 1
-                        abgr32Dict[abgr32] = dictCursor
-                    end
-
-                    k = k + 1
-                end
-            elseif bmpBpp == 24 then
-                -- Wikipedia: "24 bit images are stored as B G R triples
-                -- but are not DWORD aligned."
-                local bmpWidth3 <const> = bmpWidth * 3
-                local dWordsPerRow24 <const> = ceil(bmpWidth3 / 4)
-                local capacityPerRow24 <const> = 4 * dWordsPerRow24
-                -- print(string.format("dWordsPerRow24: %d, capacityPerRow24: %d",
-                --     dWordsPerRow24, capacityPerRow24))
-
-                local k = 0
-                while k < areaImage do
-                    local a8 = 0
-                    local b8 = 0
-                    local g8 = 0
-                    local r8 = 0
-
-                    local x <const> = k % bmpWidth
-                    local yFlipped <const> = k // bmpWidth
-
-                    local mask <const> = masks[1 + k]
-                    if mask == 0 then
-                        a8 = 255
-                        local x3 <const> = x * 3
-                        local offset <const> = dataOffset + 41 + yFlipped * capacityPerRow24
-                        b8, g8, r8 = strbyte(fileData, offset + x3, offset + 2 + x3)
-                    end
-
-                    -- print(string.format(
-                    --     "bit: %d, r8: %03d, g8: %03d, b8: %03d, #%06X",
-                    --     bit, r8, g8, b8,
-                    --     (r8 << 0x10 | g8 << 0x08 | b8)))
-
-                    local y <const> = bmpHeight - 1 - yFlipped
-                    local idxAse <const> = y * bmpWidth + x
-                    byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
-
-                    local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
-                    if not abgr32Dict[abgr32] then
-                        dictCursor = dictCursor + 1
-                        abgr32Dict[abgr32] = dictCursor
-                    end
-
-                    k = k + 1
-                end
-            elseif bmpBpp == 32 then
-                local k = 0
-                while k < areaImage do
-                    local a8 = 0
-                    local b8 = 0
-                    local g8 = 0
-                    local r8 = 0
-
-                    local x <const> = k % bmpWidth
-                    local yFlipped <const> = k // bmpWidth
-
-                    local mask <const> = masks[1 + k]
-                    if mask == 0 then
-                        local k4 <const> = 4 * k
-                        b8, g8, r8, a8 = strbyte(fileData,
-                            dataOffset + 41 + k4,
-                            dataOffset + 44 + k4)
-                    end
-
-                    -- print(string.format(
-                    --     "bit: %d, r8: %03d, g8: %03d, b8: %03d, a8: %03d, #%06X",
-                    --     bit, r8, g8, b8, a8,
-                    --     (r8 << 0x10 | g8 << 0x08 | b8)))
-
-                    local y <const> = bmpHeight - 1 - yFlipped
-                    local idxAse <const> = y * bmpWidth + x
-                    byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
-
-                    local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
-                    if not abgr32Dict[abgr32] then
-                        dictCursor = dictCursor + 1
-                        abgr32Dict[abgr32] = dictCursor
-                    end
-
-                    k = k + 1
-                end
-            end
-
-            local imageSpec <const> = ImageSpec {
-                width = bmpWidth,
-                height = bmpHeight,
-                colorMode = colorModeRgb,
-                transparentColor = 0
-            }
-            imageSpec.colorSpace = colorSpaceNone
-            local image <const> = Image(imageSpec)
-            image.bytes = tconcat(byteStrs)
-
-            images[h] = image
-
-            cursor = cursor + 16
-            -- print(string.format("cursor: %d\n", cursor))
         end
 
         if wMax <= 0 or hMax <= 0 then
@@ -702,10 +736,10 @@ dlg:button {
         local spriteSpec <const> = ImageSpec {
             width = wMax,
             height = hMax,
-            colorMode = colorModeRgb,
+            colorMode = ColorMode.RGB,
             transparentColor = 0
         }
-        spriteSpec.colorSpace = colorSpaceNone
+        spriteSpec.colorSpace = ColorSpace { sRGB = false }
         local sprite <const> = Sprite(spriteSpec)
 
         app.transaction("Set sprite file name", function()
@@ -744,38 +778,26 @@ dlg:button {
             end
         end)
 
-        ---@type integer[]
-        local uniqueColors <const> = {}
-        -- Ensure that alpha mask is at zero.
-        abgr32Dict[0] = -1
-        for abgr32, _ in pairs(abgr32Dict) do
-            uniqueColors[#uniqueColors + 1] = abgr32
-        end
-
-        table.sort(uniqueColors, function(a, b)
-            return abgr32Dict[a] < abgr32Dict[b]
-        end)
-
         local lenUniqueColors <const> = #uniqueColors
-        local lenPalette <const> = min(256, lenUniqueColors)
-
-        local spritePalette <const> = sprite.palettes[1]
-
-        app.transaction("Set palette", function()
-            spritePalette:resize(lenPalette)
-            local o = 0
-            while o < lenPalette do
-                local abgr32 <const> = uniqueColors[1 + o]
-                local aseColor <const> = Color {
-                    r = abgr32 & 0xff,
-                    g = (abgr32 >> 0x08) & 0xff,
-                    b = (abgr32 >> 0x10) & 0xff,
-                    a = (abgr32 >> 0x18) & 0xff
-                }
-                spritePalette:setColor(o, aseColor)
-                o = o + 1
-            end
-        end)
+        if lenUniqueColors > 0 then
+            local lenPalette <const> = math.min(256, lenUniqueColors)
+            local spritePalette <const> = sprite.palettes[1]
+            app.transaction("Set palette", function()
+                spritePalette:resize(lenPalette)
+                local o = 0
+                while o < lenPalette do
+                    local abgr32 <const> = uniqueColors[1 + o]
+                    local aseColor <const> = Color {
+                        r = abgr32 & 0xff,
+                        g = (abgr32 >> 0x08) & 0xff,
+                        b = (abgr32 >> 0x10) & 0xff,
+                        a = (abgr32 >> 0x18) & 0xff
+                    }
+                    spritePalette:setColor(o, aseColor)
+                    o = o + 1
+                end
+            end)
+        end
 
         -- Set preferences in new document that minimize bugs.
         local appPrefs <const> = app.preferences
