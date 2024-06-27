@@ -12,7 +12,7 @@
     https://www.informit.com/articles/article.aspx?p=1189080&seqNum=3
 ]]
 
-local importFileExts <const> = { "cur", "ico" }
+local importFileExts <const> = { "ani", "cur", "ico" }
 local exportFileExts <const> = { "cur", "ico" }
 local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
@@ -30,6 +30,7 @@ local defaults <const> = {
 
 ---@param x integer
 ---@return integer
+---@nodiscard
 local function nextPowerOf2(x)
     if x ~= 0 then
         local xSgn = 1
@@ -53,6 +54,7 @@ end
 ---@return integer hMax
 ---@return integer[] uniqueColors
 ---@return string[]|nil errMsg
+---@nodiscard
 local function readIcoCur(fileData)
     ---@type Image[]
     local images <const> = {}
@@ -63,7 +65,6 @@ local function readIcoCur(fileData)
 
     -- Cache methods used in loops.
     local ceil <const> = math.ceil
-    local min <const> = math.min
     local strbyte <const> = string.byte
     local strfmt <const> = string.format
     local strpack <const> = string.pack
@@ -86,7 +87,7 @@ local function readIcoCur(fileData)
     end
 
     ---@type table<integer, integer>
-    local abgr32Dict <const> = {} -- TODO: May have to return this... or the array
+    local abgr32Dict <const> = {}
     local dictCursor = 0
     local colorModeRgb <const> = ColorMode.RGB
     local colorSpaceNone <const> = ColorSpace { sRGB = false }
@@ -372,6 +373,237 @@ local function readIcoCur(fileData)
     end)
 
     return images, wMax, hMax, uniqueColors, nil
+end
+
+---@param fileData string
+---@return Image[] images
+---@return integer wMax
+---@return integer hMax
+---@return integer[] uniqueColors
+---@return number[] durations
+---@return string[]|nil errMsg
+---@nodiscard
+local function readAni(fileData)
+    ---@type Image[]
+    local images <const> = {}
+    local wMax = -2147483648
+    local hMax = -2147483648
+    ---@type integer[]
+    local uniqueColors <const> = {}
+    ---@type number[]
+    local durations <const> = {}
+    ---@type integer[]
+    local sequence <const> = {}
+
+    -- Cache methods used in loops.
+    local strsub <const> = string.sub
+    local strunpack <const> = string.unpack
+    local tconcat <const> = table.concat
+
+    local riffKey <const> = strsub(fileData, 1, 4)
+    if riffKey ~= "RIFF" then
+        return images, wMax, hMax, uniqueColors, durations,
+            { "\"RIFF\" identifier not found." }
+    end
+    -- local riffDataSize <const> = strunpack("<I4", strsub(fileData, 5, 8))
+
+    local aconKey <const> = strsub(fileData, 9, 12)
+    if aconKey ~= "ACON" then
+        return images, wMax, hMax, uniqueColors, durations,
+            { "\"ACON\" identifier not found." }
+    end
+
+    local rateChunkFound = false
+    local seqChunkFound = false
+    local jiffDefault = 1
+
+    local cursor = 12
+    local lenFileData <const> = #fileData
+    while cursor < lenFileData do
+        local cursorSkip = 4
+        local dWord <const> = strsub(fileData, cursor + 1, cursor + 4)
+        -- print(string.format("cursor: %d, dWord: \"%s\" 0x%08x",
+        --     cursor, dWord, strunpack("<I4", dWord)))
+
+        if dWord == "anih" then
+            local chunkSize <const>,
+            frameCount <const>, seqCount <const>,
+            width <const>, height <const>,
+            bpp <const>, bPlanes <const>,
+            jiffDefTrial <const>, flags <const> = strunpack(
+                "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
+                strsub(fileData, cursor + 5, cursor + 45))
+
+            -- print(string.format("chunkSize: %d", chunkSize))
+            -- print(string.format("frameCount: %d, seqCount: %d",
+            --     frameCount, seqCount))
+            -- print(string.format("width: %d, height: %d",
+            --     width, height))
+            -- print(string.format("bpp: %d, bPlanes: %d",
+            --     bpp, bPlanes))
+            -- print(string.format("jiffDef: %d", jiffDefTrial))
+            -- print(string.format("flags: %d (0x%08x)", flags, flags))
+
+            jiffDefault = jiffDefTrial --[[@as integer]]
+
+            -- Even if this code works correctly, it's not worth trusting these
+            -- flags. Instead, search for seq chunks and test for icos.
+            -- local usesIcoCurs <const> = (flags & 1) == 1
+            -- local hasSeqChunk <const> = (flags & 2) == 2
+            -- print(string.format("usesIcoCurs: %s", usesIcoCurs and "true" or "false"))
+            -- print(string.format("hasSeqChunk: %s", hasSeqChunk and "true" or "false"))
+
+            cursorSkip = chunkSize + 8
+        elseif dWord == "rate" then
+            rateChunkFound = true
+            local chunkSize <const> = strunpack("<I4", strsub(
+                fileData, cursor + 5, cursor + 8))
+            -- print(string.format("chunkSize: %d", chunkSize))
+
+            local rateCount <const> = chunkSize // 4
+            local i = 0
+            while i < rateCount do
+                local i4 <const> = i * 4
+                local jiffieStr <const> = strsub(fileData,
+                    cursor + 9 + i4, cursor + 12 + i4)
+                local jiffieI4 <const> = strunpack("<I4", jiffieStr)
+                local duration <const> = jiffieI4 / 60.0
+                durations[1 + i] = duration
+                i = i + 1
+            end
+
+            -- print(tconcat(durations, ", "))
+
+            cursorSkip = chunkSize + 8
+        elseif dWord == "seq " then
+            seqChunkFound = true
+            local chunkSize <const> = strunpack("<I4", strsub(
+                fileData, cursor + 5, cursor + 8))
+            -- print(string.format("chunkSize: %d", chunkSize))
+
+            local seqCount <const> = chunkSize // 4
+            local i = 0
+            while i < seqCount do
+                local i4 <const> = i * 4
+                local seqStr <const> = strsub(fileData,
+                    cursor + 9 + i4, cursor + 12 + i4)
+                local seq <const> = strunpack("<I4", seqStr)
+                sequence[1 + i] = seq
+                i = i + 1
+            end
+
+            -- print(tconcat(sequence, ", "))
+
+            cursorSkip = chunkSize + 8
+        elseif dWord == "LIST" then
+            local chunkSize <const> = strunpack("<I4", strsub(
+                fileData, cursor + 5, cursor + 8))
+            -- print(string.format("chunkSize: %d", chunkSize))
+
+            local subCursor = cursor + 8
+            while subCursor < chunkSize do
+                local subCursorSkip = 4
+                local subDWord <const> = strsub(
+                    fileData, subCursor + 1, subCursor + 4)
+                -- print(string.format("subCursor: %d, subDWord: \"%s\" 0x%08x",
+                --     subCursor, subDWord, strunpack("<I4", subDWord)))
+
+                if subDWord == "IART" then
+                    local subChunkSize <const> = strunpack("<I4", strsub(
+                        fileData, subCursor + 5, subCursor + 8))
+                    -- print(string.format("subChunkSize: %d", subChunkSize))
+                    subCursorSkip = subChunkSize + 8
+                elseif subDWord == "INAM" then
+                    local subChunkSize <const> = strunpack("<I4", strsub(
+                        fileData, subCursor + 5, subCursor + 8))
+                    -- print(string.format("subChunkSize: %d", subChunkSize))
+                    subCursorSkip = subChunkSize + 8
+                elseif subDWord == "INFO" then
+                    subCursorSkip = 4
+                elseif subDWord == "fram" then
+                    subCursorSkip = 4
+                elseif subDWord == "icon" then
+                    local subChunkSize <const> = strunpack("<I4", strsub(
+                        fileData, subCursor + 5, subCursor + 8))
+                    -- print(string.format("subChunkSize: %d", subChunkSize))
+
+                    local icoDataChunk <const> = strsub(fileData,
+                        subCursor + 9, subCursor + 8 + subChunkSize)
+                    local subImages <const>,
+                    subWMax <const>,
+                    subHMax <const>,
+                    subUniqueColors <const>,
+                    subErrMsg <const> = readIcoCur(icoDataChunk)
+
+                    if subErrMsg ~= nil then
+                        return images, wMax, hMax, uniqueColors, durations,
+                            subErrMsg
+                    end
+
+                    local lenSubImages <const> = #subImages
+                    -- TODO: Should any of these conditions return error messages instead?
+                    if lenSubImages > 0
+                        and subWMax > 0
+                        and subHMax > 0 then
+                        if subWMax > wMax then wMax = subWMax end
+                        if subHMax > hMax then hMax = subHMax end
+
+                        local i = 0
+                        while i < lenSubImages do
+                            i = i + 1
+                            images[#images + 1] = subImages[i]
+                        end
+
+                        local lenSubUniqueColors <const> = #subUniqueColors
+                        local j = 0
+                        while j < lenSubUniqueColors do
+                            j = j + 1
+                            uniqueColors[#uniqueColors + 1] = subUniqueColors[j]
+                        end
+                    end
+
+                    subCursorSkip = subChunkSize + 8
+                end
+
+                subCursor = subCursor + subCursorSkip
+            end
+
+            cursorSkip = chunkSize + 8
+        else
+            cursorSkip = 4
+        end
+
+        cursor = cursor + cursorSkip
+    end
+
+    local seqImages = {}
+    if seqChunkFound then
+        local lenImages <const> = #images
+        local lenSeq <const> = #sequence
+        local j = 0
+        while j < lenSeq do
+            j = j + 1
+            local idx <const> = 1 + sequence[j]
+            if idx <= lenImages then
+                seqImages[j] = images[idx]
+            end
+        end
+    else
+        seqImages = images
+    end
+
+    local lenSeqImages <const> = #seqImages
+    local lenDurations <const> = #durations
+    if (not rateChunkFound) or (lenSeqImages ~= lenDurations) then
+        local durDefault <const> = jiffDefault / 60.0
+        local j = 0
+        while j < lenSeqImages do
+            j = j + 1
+            durations[j] = durDefault
+        end
+    end
+
+    return seqImages, wMax, hMax, uniqueColors, durations, nil
 end
 
 ---@param chosenImages Image[]
@@ -664,12 +896,13 @@ dlg:button {
 
         local fileExt <const> = app.fs.fileExtension(importFilepath)
         local fileExtLc <const> = string.lower(fileExt)
+        local extIsAni <const> = fileExtLc == "ani"
         local extIsCur <const> = fileExtLc == "cur"
         local extIsIco <const> = fileExtLc == "ico"
-        if (not extIsCur) and (not extIsIco) then
+        if (not extIsAni) and (not extIsCur) and (not extIsIco) then
             app.alert {
                 title = "Error",
-                text = "File extension must be cur or ico."
+                text = "File extension must be ani, cur or ico."
             }
             return
         end
@@ -714,14 +947,34 @@ dlg:button {
         local fileData <const> = binFile:read("a")
         binFile:close()
 
-        local images <const>,
-        wMax <const>,
-        hMax <const>,
-        uniqueColors <const>,
-        errors <const> = readIcoCur(fileData)
+        ---@type Image[]
+        local images = {}
+        local wMax = -2147483648
+        local hMax = -2147483648
+        ---@type integer[]
+        local uniqueColors = {}
+        ---@type number[]
+        local durations = {}
+        local errors = nil
+        if extIsAni then
+            -- TODO: This might either have to return a 2D array, or
+            -- return the seq data from the header...
+            images, wMax, hMax, uniqueColors, durations, errors = readAni(fileData)
+        else
+            images, wMax, hMax, uniqueColors, errors = readIcoCur(fileData)
+        end
 
         if errors ~= nil then
             app.alert { title = "Error", text = errors }
+            return
+        end
+
+        local lenImages <const> = #images
+        if lenImages <= 0 then
+            app.alert {
+                title = "Error",
+                text = "No images were created."
+            }
             return
         end
 
@@ -746,8 +999,8 @@ dlg:button {
             sprite.filename = app.fs.fileName(importFilepath)
         end)
 
-        local lenImages <const> = #images
-
+        -- TODO: May have to change how this is all organized depending
+        -- on whether ani or ico is used...
         app.transaction("Create frames", function()
             local m = 1
             while m < lenImages do
@@ -757,12 +1010,21 @@ dlg:button {
         end)
 
         app.transaction("Set frame duration", function()
-            local dur <const> = 1.0 / math.max(1, fps)
             local spriteFrames <const> = sprite.frames
-            local n = 0
-            while n < lenImages do
-                n = n + 1
-                spriteFrames[n].duration = dur
+            local lenDurations <const> = #durations
+            if lenDurations > 0 then
+                local n = 0
+                while n < lenImages do
+                    n = n + 1
+                    spriteFrames[n].duration = durations[n]
+                end
+            else
+                local dur <const> = 1.0 / math.max(1, fps)
+                local n = 0
+                while n < lenImages do
+                    n = n + 1
+                    spriteFrames[n].duration = dur
+                end
             end
         end)
 
