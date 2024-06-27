@@ -18,7 +18,8 @@ local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
-    -- TODO: Look into support for ani? Start by reading instead of writing...
+    -- TODO: Export ani.
+    -- TODO: Support 1bpp first, then try 4bpp.
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -422,7 +423,7 @@ local function readAni(fileData)
     while cursor < lenFileData do
         local cursorSkip = 4
         local dWord <const> = strsub(fileData, cursor + 1, cursor + 4)
-        -- print(string.format("cursor: %d, dWord: \"%s\" 0x%08x",
+        -- print(string.format("cursor: %04d, dWord: \"%s\" 0x%08x",
         --     cursor, dWord, strunpack("<I4", dWord)))
 
         if dWord == "anih" then
@@ -432,7 +433,7 @@ local function readAni(fileData)
             bpp <const>, bPlanes <const>,
             jiffDefTrial <const>, flags <const> = strunpack(
                 "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
-                strsub(fileData, cursor + 5, cursor + 45))
+                strsub(fileData, cursor + 5, cursor + 44))
 
             -- print(string.format("chunkSize: %d", chunkSize))
             -- print(string.format("frameCount: %d, seqCount: %d",
@@ -446,10 +447,11 @@ local function readAni(fileData)
 
             jiffDefault = jiffDefTrial --[[@as integer]]
 
+            -- TODO: Is it possible to support reading raw bmp images?
             -- Even if this code works correctly, it's not worth trusting these
             -- flags. Instead, search for seq chunks and test for icos.
-            -- local usesIcoCurs <const> = (flags & 1) == 1
-            -- local hasSeqChunk <const> = (flags & 2) == 2
+            local usesIcoCurs <const> = (flags & 1) == 1
+            local hasSeqChunk <const> = (flags & 2) == 2
             -- print(string.format("usesIcoCurs: %s", usesIcoCurs and "true" or "false"))
             -- print(string.format("hasSeqChunk: %s", hasSeqChunk and "true" or "false"))
 
