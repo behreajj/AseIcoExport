@@ -18,8 +18,6 @@ local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
-    -- TODO: Export ani.
-    -- TODO: Support 1bpp first, then try 4bpp.
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -212,11 +210,58 @@ local function readIcoCur(fileData)
         ---@type string[]
         local byteStrs <const> = {}
 
-        if bmpBpp == 8 then
-            local dWordsPerRowIdx <const> = ceil(bmpWidth / 4)
-            local capacityPerRowIdx <const> = 4 * dWordsPerRowIdx
-            -- print(string.format("dWordsPerRowIdx: %d, capacityPerRowIdx: %d",
-            --     dWordsPerRowIdx, capacityPerRowIdx))
+        if bmpBpp == 1 then
+            local dWordsPerRow1 <const> = ceil(bmpWidth / 32)
+            local capacityPerRow1 <const> = 4 * dWordsPerRow1
+            -- print(string.format("dWordsPerRow1: %d, capacityPerRow1: %d",
+            --     dWordsPerRow1, capacityPerRow1))
+
+            local k = 0
+            while k < areaImage do
+                local a8 = 0
+                local b8 = 0
+                local g8 = 0
+                local r8 = 0
+
+                local x <const> = k % bmpWidth
+                local yFlipped <const> = k // bmpWidth
+
+                local mask <const> = masks[1 + k]
+                if mask == 0 then
+                    a8 = 255
+                    local xDWord <const> = x // 32
+                    local xBit <const> = 31 - x % 32
+                    local orig <const> = dataOffset + 41 + numColors4
+                        + yFlipped * capacityPerRow1 + xDWord
+                    local idxWord <const> = strunpack(">I4", strsub(
+                        fileData, orig, orig + 3))
+                    local idxMap <const> = (idxWord >> xBit) & 0x1
+
+                    -- print(string.format("idxMap: %d", idxMap))
+
+                    local abgr32 <const> = palAbgr32s[1 + idxMap]
+                    r8 = abgr32 & 0xff
+                    g8 = (abgr32 >> 0x08) & 0xff
+                    b8 = (abgr32 >> 0x10) & 0xff
+                end
+
+                local y <const> = bmpHeight - 1 - yFlipped
+                local idxAse <const> = y * bmpWidth + x
+                byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
+
+                local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
+                if not abgr32Dict[abgr32] then
+                    dictCursor = dictCursor + 1
+                    abgr32Dict[abgr32] = dictCursor
+                end
+
+                k = k + 1
+            end
+        elseif bmpBpp == 8 then
+            local dWordsPerRow8 <const> = ceil(bmpWidth / 4)
+            local capacityPerRow8 <const> = 4 * dWordsPerRow8
+            -- print(string.format("dWordsPerRow8: %d, capacityPerRow8: %d",
+            --     dWordsPerRow8, capacityPerRow8))
 
             local k = 0
             while k < areaImage do
@@ -233,7 +278,7 @@ local function readIcoCur(fileData)
                     a8 = 255
                     local idxMap <const> = strbyte(fileData,
                         dataOffset + 41 + numColors4
-                        + yFlipped * capacityPerRowIdx + x)
+                        + yFlipped * capacityPerRow8 + x)
 
                     -- print(string.format("idxMap: %d", idxMap))
 
