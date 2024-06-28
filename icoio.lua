@@ -229,13 +229,12 @@ local function readIcoCur(fileData)
                 local mask <const> = masks[1 + k]
                 if mask == 0 then
                     a8 = 255
-                    local xDWord <const> = x // 32
-                    local xBit <const> = 31 - x % 32
-                    local orig <const> = dataOffset + 41 + numColors4
-                        + yFlipped * capacityPerRow1 + xDWord
-                    local idxWord <const> = strunpack(">I4", strsub(
-                        fileData, orig, orig + 3))
-                    local idxMap <const> = (idxWord >> xBit) & 0x1
+                    local xByte <const> = 4 * x // 32
+                    local xBit <const> = 7 - x % 8
+                    local idxByte <const> = strbyte(fileData,
+                        dataOffset + 41 + numColors4
+                        + yFlipped * capacityPerRow1 + xByte)
+                    local idxMap <const> = (idxByte >> xBit) & 0x1
 
                     -- print(string.format("idxMap: %d", idxMap))
 
