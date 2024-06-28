@@ -13,6 +13,12 @@ For example, Windows 11.
 **Aseprite version**
 The current supported version is 1.3.7.
 
+**Import or Export**
+Was the issue with importing or exporting a file?
+
+**File Format**
+Which file format caused the issue (ani, cur, ico)?
+
 **Sprite color mode**
 RGB, indexed or grayscale.
 
@@ -24,6 +30,3 @@ Steps to reproduce the behavior.
 
 **Expected behavior**
 A clear and concise description of expected behavior.
-
-**Screenshots**
-Add screenshots to illustrate the bug.
