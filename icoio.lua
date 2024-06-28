@@ -13,7 +13,7 @@
 ]]
 
 local importFileExts <const> = { "ani", "cur", "ico" }
-local exportFileExts <const> = { "cur", "ico" }
+local exportFileExts <const> = { "ani", "cur", "ico" }
 local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
@@ -406,7 +406,8 @@ local function readAni(fileData)
         return images, wMax, hMax, uniqueColors, durations,
             { "\"RIFF\" identifier not found." }
     end
-    -- local riffDataSize <const> = strunpack("<I4", strsub(fileData, 5, 8))
+    local riffDataSize <const> = strunpack("<I4", strsub(fileData, 5, 8))
+    -- print(string.format("riffDataSize: %d", riffDataSize))
 
     local aconKey <const> = strsub(fileData, 9, 12)
     if aconKey ~= "ACON" then
@@ -428,22 +429,28 @@ local function readAni(fileData)
 
         if dWord == "anih" then
             local chunkSize <const>,
-            frameCount <const>, seqCount <const>,
-            width <const>, height <const>,
-            bpp <const>, bPlanes <const>,
-            jiffDefTrial <const>, flags <const> = strunpack(
+            dataSize <const>,
+            frameCount <const>,
+            seqCount <const>,
+            width <const>,
+            height <const>,
+            bpp <const>,
+            bPlanes <const>,
+            jiffDefTrial <const>,
+            flags <const> = strunpack(
                 "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
                 strsub(fileData, cursor + 5, cursor + 44))
 
-            -- print(string.format("chunkSize: %d", chunkSize))
-            -- print(string.format("frameCount: %d, seqCount: %d",
-            --     frameCount, seqCount))
-            -- print(string.format("width: %d, height: %d",
-            --     width, height))
-            -- print(string.format("bpp: %d, bPlanes: %d",
-            --     bpp, bPlanes))
-            -- print(string.format("jiffDef: %d", jiffDefTrial))
-            -- print(string.format("flags: %d (0x%08x)", flags, flags))
+            -- print(string.format("01 chunkSize: %d", chunkSize))
+            -- print(string.format("02 dataSize: %d", dataSize))
+            -- print(string.format("03 frameCount: %d", frameCount))
+            -- print(string.format("04 seqCount: %d", seqCount))
+            -- print(string.format("05 width: %d", width))
+            -- print(string.format("06 height: %d", height))
+            -- print(string.format("07 bpp: %d", bpp))
+            -- print(string.format("08 bPlanes: %d", bPlanes))
+            -- print(string.format("09 jiffDefault: %d", jiffDefTrial))
+            -- print(string.format("10 flags: %d", flags))
 
             jiffDefault = jiffDefTrial --[[@as integer]]
 
@@ -854,9 +861,138 @@ local function writeIco(
     return finalString
 end
 
-local dlg <const> = Dialog { title = "Ico Export" }
+---@param chosenImages Image[]
+---@param chosenPalettes Palette[]
+---@param displaySeq integer[]
+---@param jiffies integer[]
+---@param colorModeSprite ColorMode
+---@param alphaIndexSprite integer
+---@param jifDefault integer
+---@return string
+local function writeAni(
+    chosenImages,
+    chosenPalettes,
+    displaySeq,
+    jiffies,
+    colorModeSprite,
+    alphaIndexSprite,
+    jifDefault)
+    local strpack <const> = string.pack
+    local tconcat <const> = table.concat
 
--- dlg:separator { id = "importSep" }
+    local wAni = 0
+    local hAni = 0
+
+    ---@type string[]
+    local iconStrs <const> = {}
+    local lenChosenImages <const> = #chosenImages
+    local i = 0
+    while i < lenChosenImages do
+        i = i + 1
+        local chosenImage <const> = chosenImages[i]
+        local chosenPalette <const> = chosenPalettes[i]
+        local chosenSpec <const> = chosenImage.spec
+        local wImage <const> = chosenSpec.width
+        local hImage <const> = chosenSpec.height
+
+        if wImage > wAni then wAni = wImage end
+        if hImage > hAni then hAni = hImage end
+
+        local icoFileStr <const> = writeIco(
+            { chosenImage },
+            { chosenPalette },
+            colorModeSprite,
+            alphaIndexSprite,
+            false,
+            0.0, 0.0)
+        local iconStr = tconcat({
+            "icon",
+            strpack("<I4", #icoFileStr),
+            icoFileStr
+        })
+
+        iconStrs[i] = iconStr
+    end
+
+    local listStrConcat <const> = tconcat(iconStrs)
+    local listChunk <const> = tconcat({
+        "LIST",
+        strpack("<I4", 4 + #listStrConcat),
+        "fram",
+        listStrConcat
+    })
+
+    ---@type string[]
+    local rateStrs <const> = {}
+    local lenJiffies <const> = #jiffies
+    -- print(string.format("lenJiffies: %d", lenJiffies))
+    local j = 0
+    while j < lenJiffies do
+        j = j + 1
+        rateStrs[j] = strpack("<I4", jiffies[j])
+    end
+    local rateStrConcat <const> = tconcat(rateStrs)
+    local rateChunk <const> = tconcat({
+        "rate",
+        strpack("<I4", #rateStrConcat),
+        rateStrConcat
+    })
+
+    ---@type string[]
+    local seqStrs <const> = {}
+    local lenDisplaySeq <const> = #displaySeq
+    -- print(string.format("lenDisplaySeq: %d", lenDisplaySeq))
+    local k = 0
+    while k < lenDisplaySeq do
+        k = k + 1
+        seqStrs[k] = strpack("<I4", displaySeq[k])
+    end
+    local seqStrConcat <const> = tconcat(seqStrs)
+    local seqChunk <const> = tconcat({
+        "seq ",
+        strpack("<I4", #seqStrConcat),
+        seqStrConcat
+    })
+
+    local aniHeader <const> = strpack(
+        "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
+        0x68696E61,      -- 01 00 "anih"
+        36,              -- 02 04
+        36,              -- 02 04
+        lenChosenImages, -- 03 08
+        lenDisplaySeq,   -- 04 12
+        wAni,            -- 05 16
+        hAni,            -- 06 20
+        32,              -- 07 24 Bit count
+        1,               -- 08 28 Bit planes
+        jifDefault,      -- 09 32 Default rate jiffies
+        3)               -- 10 36 0b11 Includes seq chunk, uses icos
+
+    local bodyStr <const> = tconcat({
+        aniHeader,
+        rateChunk,
+        seqChunk,
+        listChunk
+    })
+
+    -- print(string.format("totalChunkSize: %d (0x%08x)",
+    --     4 + #bodyStr, 4 + #bodyStr))
+    -- print(string.format("rateChunkSize: %d (0x%08x)",
+    --     #rateStrConcat, #rateStrConcat))
+    -- print(string.format("seqChunkSize: %d (0x%08x)",
+    --     #seqStrConcat, #seqStrConcat))
+    -- print(string.format("listChunkSize: %d (0x%08x)",
+    --     4 + #listStrConcat, 4 + #listStrConcat))
+
+    return tconcat({
+        "RIFF",
+        strpack("<I4", 4 + #bodyStr),
+        "ACON",
+        bodyStr
+    })
+end
+
+local dlg <const> = Dialog { title = "Ico Export" }
 
 dlg:slider {
     id = "fps",
@@ -1178,12 +1314,13 @@ dlg:button {
 
         local fileExt <const> = app.fs.fileExtension(exportFilepath)
         local fileExtLc <const> = string.lower(fileExt)
+        local extIsAni <const> = fileExtLc == "ani"
         local extIsCur <const> = fileExtLc == "cur"
         local extIsIco <const> = fileExtLc == "ico"
-        if (not extIsCur) and (not extIsIco) then
+        if (not extIsAni) and (not extIsCur) and (not extIsIco) then
             app.alert {
                 title = "Error",
-                text = "File extension must be cur or ico."
+                text = "File extension must be ani, cur or ico."
             }
             return
         end
@@ -1214,6 +1351,7 @@ dlg:button {
 
         -- Cache methods used in loops.
         local abs <const> = math.abs
+        local floor <const> = math.floor
         local max <const> = math.max
         local min <const> = math.min
         local strpack <const> = string.pack
@@ -1230,11 +1368,18 @@ dlg:button {
 
         ---@type integer[]
         local chosenFrIdcs <const> = {}
+        ---@type integer[]
+        local displaySeq <const> = {}
+        ---@type integer[]
+        local jiffies <const> = {}
+
         if frameTarget == "ACTIVE" then
             local activeFrObj <const> = app.frame
                 or activeSprite.frames[1]
             local activeFrIdx <const> = activeFrObj.frameNumber
             chosenFrIdcs[1] = activeFrIdx
+            displaySeq[1] = 0
+            jiffies[1] = max(1, floor(0.5 + 60.0 * activeFrObj.duration))
         elseif frameTarget == "TAG" then
             local tagsSprite <const> = activeSprite.tags
             local lenTagsSprite <const> = #tagsSprite
@@ -1255,17 +1400,66 @@ dlg:button {
 
             -- It has been possible for tags to be out of bounds due to
             -- export bugs.
-            local frFrameIdx <const> = min(max(
+            local origIdx <const> = min(max(
                 frFrameObj and frFrameObj.frameNumber or 1,
                 1), lenSpriteFrames)
-            local toFrameIdx <const> = min(max(
+            local destIdx <const> = min(max(
                 toFrameObj and toFrameObj.frameNumber or lenSpriteFrames,
                 1), lenSpriteFrames)
 
-            local i = frFrameIdx - 1
-            while i < toFrameIdx do
+            local i = origIdx - 1
+            while i < destIdx do
                 i = i + 1
                 chosenFrIdcs[#chosenFrIdcs + 1] = i
+            end
+
+            local aniDir <const> = activeTag.aniDir
+            if aniDir == AniDir.REVERSE then
+                local j = destIdx + 1
+                while j > origIdx do
+                    j = j - 1
+                    displaySeq[#displaySeq + 1] = j - origIdx
+                end
+            elseif aniDir == AniDir.PING_PONG then
+                local j = origIdx - 1
+                while j < destIdx do
+                    j = j + 1
+                    displaySeq[#displaySeq + 1] = j - origIdx
+                end
+                local op1 <const> = origIdx + 1
+                while j > op1 do
+                    j = j - 1
+                    displaySeq[#displaySeq + 1] = j - origIdx
+                end
+            elseif aniDir == AniDir.PING_PONG_REVERSE then
+                local j = destIdx + 1
+                while j > origIdx do
+                    j = j - 1
+                    displaySeq[#displaySeq + 1] = j - origIdx
+                end
+                local dn1 <const> = destIdx - 1
+                while j < dn1 do
+                    j = j + 1
+                    displaySeq[#displaySeq + 1] = j - origIdx
+                end
+            else
+                -- Default to AniDir.FORWARD
+                local j = origIdx - 1
+                while j < destIdx do
+                    j = j + 1
+                    displaySeq[#displaySeq + 1] = j - origIdx
+                end
+            end
+
+            local lenDisplaySeq <const> = #displaySeq
+            local k = 0
+            while k < lenDisplaySeq do
+                k = k + 1
+                local frIdx <const> = displaySeq[k] + origIdx
+                local frObj <const> = spriteFrames[frIdx]
+                local duration <const> = frObj.duration
+                local jiffie <const> = max(1, floor(0.5 + 60.0 * duration))
+                jiffies[k] = jiffie
             end
         else
             -- Default to "ALL".
@@ -1275,6 +1469,11 @@ dlg:button {
             while i < lenSpriteFrames do
                 i = i + 1
                 chosenFrIdcs[i] = i
+                displaySeq[i] = i - 1
+                local frObj <const> = spriteFrames[1]
+                local duration <const> = frObj.duration
+                local jiffie <const> = max(1, floor(0.5 + 60.0 * duration))
+                jiffies[i] = jiffie
             end
         end
 
@@ -1481,6 +1680,16 @@ dlg:button {
                 return
             end
 
+            -- Otherwise the length of chosen images will be of different
+            -- length than the lengths of chosen frames, etc.
+            if extIsAni and lenChosenSlices > 1 then
+                app.alet {
+                    title = "Error",
+                    text = "Only one slice can be selected per ani file."
+                }
+                return
+            end
+
             local defaultBounds <const> = Rectangle(0, 0, wSprite, hSprite)
 
             -- Make the slices loop the outer loop in case a slice's frames
@@ -1570,15 +1779,28 @@ dlg:button {
         local xHotSpot <const> = xHotSpot100 * 0.01
         local yHotSpot <const> = yHotSpot100 * 0.01
 
-        local icoString <const> = writeIco(
-            chosenImages,
-            chosenPalettes,
-            colorModeSprite,
-            alphaIndexSprite,
-            extIsCur,
-            xHotSpot,
-            yHotSpot)
-        binFile:write(icoString)
+        local finalString = ""
+        if extIsAni then
+            local jiffDefault <const> = 5 -- 60 sec / 12 fps
+            finalString = writeAni(
+                chosenImages,
+                chosenPalettes,
+                displaySeq,
+                jiffies,
+                colorModeSprite,
+                alphaIndexSprite,
+                jiffDefault)
+        else
+            finalString = writeIco(
+                chosenImages,
+                chosenPalettes,
+                colorModeSprite,
+                alphaIndexSprite,
+                extIsCur,
+                xHotSpot,
+                yHotSpot)
+        end
+        binFile:write(finalString)
         binFile:close()
 
         app.alert {
