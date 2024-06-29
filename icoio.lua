@@ -912,6 +912,8 @@ end
 ---@param colorModeSprite ColorMode
 ---@param alphaIndexSprite integer
 ---@param jifDefault integer
+---@param xHotSpot number
+---@param yHotSpot number
 ---@return string
 local function writeAni(
     chosenImages,
@@ -920,7 +922,8 @@ local function writeAni(
     jiffies,
     colorModeSprite,
     alphaIndexSprite,
-    jifDefault)
+    jifDefault,
+    xHotSpot, yHotSpot)
     local strpack <const> = string.pack
     local tconcat <const> = table.concat
 
@@ -947,8 +950,7 @@ local function writeAni(
             { chosenPalette },
             colorModeSprite,
             alphaIndexSprite,
-            false,
-            0.0, 0.0)
+            true, xHotSpot, yHotSpot)
         local iconStr = tconcat({
             "icon",
             strpack("<I4", #icoFileStr),
@@ -1833,7 +1835,9 @@ dlg:button {
                 jiffies,
                 colorModeSprite,
                 alphaIndexSprite,
-                jiffDefault)
+                jiffDefault,
+                xHotSpot,
+                yHotSpot)
         else
             finalString = writeIco(
                 chosenImages,
