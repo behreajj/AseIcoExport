@@ -1541,8 +1541,7 @@ dlg:button {
             local activeLayer <const> = app.layer
                 or activeSprite.layers[1]
 
-            local isReference <const> = activeLayer.isReference
-            if isReference then
+            if activeLayer.isReference then
                 app.alert {
                     title = "Error",
                     text = "Reference layers are not supported."
@@ -1550,8 +1549,7 @@ dlg:button {
                 return
             end
 
-            local isTileMap <const> = activeLayer.isTilemap
-            if isTileMap then
+            if activeLayer.isTilemap then
                 app.alert {
                     title = "Error",
                     text = {
@@ -1562,8 +1560,7 @@ dlg:button {
                 return
             end
 
-            local isGroup <const> = activeLayer.isGroup
-            if isGroup then
+            if activeLayer.isGroup then
                 app.alert {
                     title = "Error",
                     text = {
