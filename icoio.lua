@@ -667,6 +667,7 @@ end
 ---@param xHotSpot number
 ---@param yHotSpot number
 ---@return string
+---@nodiscard
 local function writeIco(
     chosenImages,
     chosenPalettes,
@@ -772,11 +773,6 @@ local function writeIco(
 
         ---@type integer[]
         local dWords <const> = {}
-        local p = 0
-        while p < lenDWords do
-            p = p + 1
-            dWords[p] = 0
-        end
 
         -- In bitmap format, y axis is from bottom to top.
         if colorModeSprite == ColorMode.RGB then
@@ -803,7 +799,7 @@ local function writeIco(
                 local xDWord <const> = x // 32
                 local xBit <const> = 31 - x % 32
                 local idxDWord <const> = y * dWordsPerRow + xDWord
-                local dWord <const> = dWords[1 + idxDWord]
+                local dWord <const> = dWords[1 + idxDWord] or 0
                 dWords[1 + idxDWord] = dWord | (draw << xBit)
 
                 m = m + 1
@@ -829,7 +825,7 @@ local function writeIco(
                 local xDWord <const> = x // 32
                 local xBit <const> = 31 - x % 32
                 local idxDWord <const> = y * dWordsPerRow + xDWord
-                local dWord <const> = dWords[1 + idxDWord]
+                local dWord <const> = dWords[1 + idxDWord] or 0
                 dWords[1 + idxDWord] = dWord | (draw << xBit)
 
                 m = m + 1
@@ -865,7 +861,7 @@ local function writeIco(
                 local xDWord <const> = x // 32
                 local xBit <const> = 31 - x % 32
                 local idxDWord <const> = y * dWordsPerRow + xDWord
-                local dWord <const> = dWords[1 + idxDWord]
+                local dWord <const> = dWords[1 + idxDWord] or 0
                 dWords[1 + idxDWord] = dWord | (draw << xBit)
 
                 m = m + 1
@@ -915,6 +911,7 @@ end
 ---@param xHotSpot number
 ---@param yHotSpot number
 ---@return string
+---@nodiscard
 local function writeAni(
     chosenImages,
     chosenPalettes,
@@ -951,7 +948,7 @@ local function writeAni(
             colorModeSprite,
             alphaIndexSprite,
             true, xHotSpot, yHotSpot)
-        local iconStr = tconcat({
+        local iconStr <const> = tconcat({
             "icon",
             strpack("<I4", #icoFileStr),
             icoFileStr
