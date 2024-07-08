@@ -1001,15 +1001,15 @@ local function writeAni(
         "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
         0x68696E61,      -- 01 00 "anih"
         36,              -- 02 04
-        36,              -- 02 04
-        lenChosenImages, -- 03 08
-        lenDisplaySeq,   -- 04 12
-        wAni,            -- 05 16
-        hAni,            -- 06 20
-        32,              -- 07 24 Bit count
-        1,               -- 08 28 Bit planes
-        jifDefault,      -- 09 32 Default rate jiffies
-        3)               -- 10 36 0b11 Includes seq chunk, uses icos
+        36,              -- 03 04
+        lenChosenImages, -- 04 08
+        lenDisplaySeq,   -- 05 12
+        wAni,            -- 06 16
+        hAni,            -- 07 20
+        32,              -- 08 24 Bit count
+        1,               -- 09 28 Bit planes
+        jifDefault,      -- 10 32 Default rate jiffies
+        3)               -- 11 36 0b11 Includes seq chunk, uses icos
 
     local bodyStr <const> = tconcat({
         aniHeader,
@@ -1513,7 +1513,7 @@ dlg:button {
                 i = i + 1
                 chosenFrIdcs[i] = i
                 displaySeq[i] = i - 1
-                local frObj <const> = spriteFrames[1]
+                local frObj <const> = spriteFrames[i]
                 local duration <const> = frObj.duration
                 local jiffie <const> = max(1, floor(0.5 + 60.0 * duration))
                 jiffies[i] = jiffie
