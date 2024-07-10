@@ -1624,6 +1624,7 @@ dlg:button {
             end
 
             hasBkg = activeSprite.backgroundLayer ~= nil
+                and activeSprite.backgroundLayer.isVisible
 
             local boundsMask <const> = mask.bounds
             local xtlBounds <const> = boundsMask.x
@@ -1729,6 +1730,7 @@ dlg:button {
             end
 
             hasBkg = activeSprite.backgroundLayer ~= nil
+                and activeSprite.backgroundLayer.isVisible
 
             -- Otherwise the length of chosen images will be of different
             -- length than the lengths of chosen frames, etc.
@@ -1783,6 +1785,7 @@ dlg:button {
         else
             -- Default to "CANVAS"
             hasBkg = activeSprite.backgroundLayer ~= nil
+                and activeSprite.backgroundLayer.isVisible
 
             local pointZero <const> = Point(0, 0)
             local wBlit <const> = min(wLimit, nextPowerOf2(wSprite))
