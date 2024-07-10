@@ -18,6 +18,8 @@ local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 
 local defaults <const> = {
+    -- 256x256 ani files don't open properly in Irfanview, but still work
+    -- when assigned to mouse cursor in Windows.
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -663,6 +665,7 @@ end
 ---@param chosenPalettes Palette[]
 ---@param colorModeSprite ColorMode
 ---@param alphaIndexSprite integer
+---@param hasBkg boolean
 ---@param extIsCur boolean
 ---@param xHotSpot number
 ---@param yHotSpot number
@@ -673,6 +676,7 @@ local function writeIco(
     chosenPalettes,
     colorModeSprite,
     alphaIndexSprite,
+    hasBkg,
     extIsCur,
     xHotSpot,
     yHotSpot)
@@ -845,7 +849,7 @@ local function writeIco(
                 local a8 = 0
 
                 local idx <const> = strbyte(srcByteStr, 1 + n)
-                if idx ~= alphaIndexSprite then
+                if hasBkg or idx ~= alphaIndexSprite then
                     local aseColor <const> = palette:getColor(idx)
                     a8 = aseColor.alpha
                     if a8 > maskThreshold then
@@ -907,6 +911,7 @@ end
 ---@param jiffies integer[]
 ---@param colorModeSprite ColorMode
 ---@param alphaIndexSprite integer
+---@param hasBkg boolean
 ---@param jifDefault integer
 ---@param xHotSpot number
 ---@param yHotSpot number
@@ -919,6 +924,7 @@ local function writeAni(
     jiffies,
     colorModeSprite,
     alphaIndexSprite,
+    hasBkg,
     jifDefault,
     xHotSpot, yHotSpot)
     local strpack <const> = string.pack
@@ -947,6 +953,7 @@ local function writeAni(
             { chosenPalette },
             colorModeSprite,
             alphaIndexSprite,
+            hasBkg,
             true, xHotSpot, yHotSpot)
         local iconStr <const> = tconcat({
             "icon",
@@ -1138,8 +1145,6 @@ dlg:button {
         local durations = {}
         local errors = nil
         if extIsAni then
-            -- TODO: This might either have to return a 2D array, or
-            -- return the seq data from the header...
             images, wMax, hMax, uniqueColors, durations, errors = readAni(fileData)
         else
             images, wMax, hMax, uniqueColors, errors = readIcoCur(fileData)
@@ -1180,8 +1185,6 @@ dlg:button {
             sprite.filename = app.fs.fileName(importFilepath)
         end)
 
-        -- TODO: May have to change how this is all organized depending
-        -- on whether ani or ico is used...
         app.transaction("Create frames", function()
             local m = 1
             while m < lenImages do
@@ -1529,6 +1532,7 @@ dlg:button {
             return
         end
 
+        local hasBkg = false
         local spritePalettes <const> = activeSprite.palettes
         local lenSpritePalettes <const> = #spritePalettes
 
@@ -1570,6 +1574,8 @@ dlg:button {
                 }
                 return
             end
+
+            hasBkg = activeLayer.isBackground
 
             local pointZero <const> = Point(0, 0)
             local blendModeSrc <const> = BlendMode.SRC
@@ -1616,6 +1622,8 @@ dlg:button {
                 }
                 return
             end
+
+            hasBkg = activeSprite.backgroundLayer ~= nil
 
             local boundsMask <const> = mask.bounds
             local xtlBounds <const> = boundsMask.x
@@ -1720,6 +1728,8 @@ dlg:button {
                 return
             end
 
+            hasBkg = activeSprite.backgroundLayer ~= nil
+
             -- Otherwise the length of chosen images will be of different
             -- length than the lengths of chosen frames, etc.
             if extIsAni and lenChosenSlices > 1 then
@@ -1772,6 +1782,8 @@ dlg:button {
             end
         else
             -- Default to "CANVAS"
+            hasBkg = activeSprite.backgroundLayer ~= nil
+
             local pointZero <const> = Point(0, 0)
             local wBlit <const> = min(wLimit, nextPowerOf2(wSprite))
             local hBlit <const> = min(hLimit, nextPowerOf2(hSprite))
@@ -1829,6 +1841,7 @@ dlg:button {
                 jiffies,
                 colorModeSprite,
                 alphaIndexSprite,
+                hasBkg,
                 jiffDefault,
                 xHotSpot,
                 yHotSpot)
@@ -1838,6 +1851,7 @@ dlg:button {
                 chosenPalettes,
                 colorModeSprite,
                 alphaIndexSprite,
+                hasBkg,
                 extIsCur,
                 xHotSpot,
                 yHotSpot)
