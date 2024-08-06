@@ -25,8 +25,8 @@ local defaults <const> = {
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
-    xHotSpot = 50,
-    yHotSpot = 50,
+    xHotSpot = 0,
+    yHotSpot = 0,
     wLimit = 512,
     hLimit = 512
 }
