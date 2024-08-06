@@ -25,6 +25,8 @@ local defaults <const> = {
     -- when assigned to mouse cursor in Windows.
 
     -- TODO: Support format options for export, e.g., 24 v. 32 bit.
+
+    -- TODO: Multiple resolutions for an image when only one frame?
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -1284,7 +1286,7 @@ dlg:separator { id = "exportSep" }
 
 dlg:combobox {
     id = "visualTarget",
-    label = "Target:",
+    label = "Area:",
     option = defaults.visualTarget,
     options = visualTargets,
     focus = false,
