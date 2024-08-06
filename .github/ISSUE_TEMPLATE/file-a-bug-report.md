@@ -22,11 +22,8 @@ Which file format caused the issue (ani, cur, ico)?
 **Sprite color mode**
 RGB, indexed or grayscale.
 
-**Current behavior**
-A clear and concise description of current behavior.
+**Sprite Size**
+The size of the image (16x16, 128x128, etc.)?
 
 **To Reproduce**
 Steps to reproduce the behavior.
-
-**Expected behavior**
-A clear and concise description of expected behavior.
