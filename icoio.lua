@@ -20,13 +20,15 @@ local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 local defaults <const> = {
     -- 256x256 ani files don't open properly in Irfanview, but still work
     -- when assigned to mouse cursor in Windows.
+
+    -- TODO: Support format options for export, e.g., 24 v. 32 bit.
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
     xHotSpot = 50,
     yHotSpot = 50,
-    wLimit = 256,
-    hLimit = 256
+    wLimit = 512,
+    hLimit = 512
 }
 
 ---@param x integer
@@ -750,8 +752,6 @@ local function writeIco(
         entryHeaders[k] = entryHeader
         icoOffset = icoOffset + icoSize
 
-        -- For pels per meter discussion, see
-        -- https://stackoverflow.com/questions/17550545/bmp-image-header-bixpelspermeter
         local bmpHeader <const> = strpack(
             "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
             40,      -- 4 bytes, header size

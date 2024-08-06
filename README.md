@@ -6,7 +6,7 @@ This an [Aseprite](https://www.aseprite.org/) script to export `ani`s, `cur`s an
 
 Aseprite can load and save `ico`s, but the files are unreadable by other graphics editors, and do not support alpha even when they should.
 
-Export is limited to to the size 256 by 256 pixels. Image dimensions are rounded to the next greatest power of two (8, 16, 32, 64, 128, 256). The file is formatted as 32 bit RGBA regardless of the sprite's color mode (grayscale, indexed or RGB). Each frame is stored as a separate entry in the same file.
+Export is limited to to the size 512 by 512 pixels. Image dimensions are rounded to the next greatest power of two (8, 16, 32, 64, 128, 256). The file is formatted as 32 bit RGBA regardless of the sprite's color mode (grayscale, indexed or RGB). Each frame is stored as a separate entry in the same file.
 
 Import is limited to 8 bit indexed with 256 color palette; 24 bit RGB with 1 bit alpha; and 32 bit RGBA. The opened sprite is always in RGB color mode, regardless of the file format. Files containing compressed png data are not supported. *This script does not import Aseprite generated files.*
 
@@ -26,7 +26,7 @@ If an error message in Aseprite's console appears, check if the script folder is
 
 ## Usage
 
-A hot key can be assigned to a script by going to `Edit > Keyboard Shortcuts`. The search input box in the top left of the shortcuts dialog can be used to locate the script by its file name.
+A shortcut can be assigned to a script by going to `Edit > Keyboard Shortcuts`. The search input box in the top left of the shortcuts dialog can be used to locate the script by its file name.
 
 Once open, holding down the `Alt` or `Option` key and pressing the underlined letter on a button will activate that button via keypress. For example, `Alt+C` will cancel the dialog.
 
