@@ -10,6 +10,9 @@
 
     Ani format
     https://www.informit.com/articles/article.aspx?p=1189080&seqNum=3
+
+    Pels per meter
+    https://stackoverflow.com/questions/17550545/bmp-image-header-bixpelspermeter
 ]]
 
 local importFileExts <const> = { "ani", "cur", "ico" }
@@ -139,8 +142,12 @@ local function readIcoCur(fileData)
         bmpHeight2 <const>,
         bmpPlanes <const>,
         bmpBpp <const>,
-        _ <const>, bmpSize <const>,
-        _ <const>, _ <const>, _ <const>, _ <const> = strunpack(
+        bmpCompress <const>,
+        bmpChunk <const>,
+        bmpXRes <const>,
+        bmpYRes <const>,
+        bmpUsed <const>,
+        bmpKey <const> = strunpack(
             "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
             strsub(fileData, dataOffset + 1, dataOffset + 40))
 
@@ -153,7 +160,10 @@ local function readIcoCur(fileData)
         -- print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
         -- print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
         -- print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
-        -- print(string.format("bmpSize: %d", bmpSize))
+        -- print(string.format("bmpCompress: %d", bmpCompress))
+        -- print(string.format("bmpChunk: %d", bmpChunk))
+        -- print(string.format("bmpXRes: %d, bmpYRes: %d", bmpXRes, bmpYRes))
+        -- print(string.format("bmpUsed: %d, bmpKey: %d", bmpUsed, bmpKey))
 
         if bmpHeaderSize ~= 40 or reserved ~= 0 then
             return images, wMax, hMax, uniqueColors, {
