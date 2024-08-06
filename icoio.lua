@@ -22,9 +22,6 @@ local defaults <const> = {
     -- when assigned to mouse cursor in Windows.
 
     -- TODO: Support format options for export, e.g., 24 v. 32 bit.
-
-    -- TODO: When frameTarget is active, option to automatically generate
-    -- different resolutions?
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -737,12 +734,6 @@ local function writeIco(
 
         local xHsWrite = 1  -- or bit planes for ico
         local yHsWrite = 32 -- or bits per pixel for ico
-
-        local numClrsWrite = 0
-        if (yHsWrite * xHsWrite) < 8 then
-            numClrsWrite = 1 << (yHsWrite * xHsWrite)
-        end
-
         if extIsCur then
             xHsWrite = floor(0.5 + xHotSpot * (wImage - 1.0))
             yHsWrite = floor(0.5 + yHotSpot * (hImage - 1.0))
@@ -750,14 +741,14 @@ local function writeIco(
 
         local entryHeader <const> = strpack(
             "B B B B <I2 <I2 <I4 <I4",
-            w8,           -- 1 bytes, image width
-            h8,           -- 1 bytes, image height
-            numClrsWrite, -- 1 bytes, color count, 0 if gt 256
-            0,            -- 1 bytes, reserved
-            xHsWrite,     -- 2 bytes, number of planes (ico), x hotspot (cur)
-            yHsWrite,     -- 2 bytes, bits per pixel (ico), y hotspot (cur)
-            icoSize,      -- 4 bytes, chunk size including header
-            icoOffset)    -- 4 bytes, chunk offset
+            w8,        -- 1 bytes, image width
+            h8,        -- 1 bytes, image height
+            0,         -- 1 bytes, color count, 0 if gt 256
+            0,         -- 1 bytes, reserved
+            xHsWrite,  -- 2 bytes, number of planes (ico), x hotspot (cur)
+            yHsWrite,  -- 2 bytes, bits per pixel (ico), y hotspot (cur)
+            icoSize,   -- 4 bytes, chunk size including header
+            icoOffset) -- 4 bytes, chunk offset
         entryHeaders[k] = entryHeader
         icoOffset = icoOffset + icoSize
 
