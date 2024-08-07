@@ -37,7 +37,7 @@ local defaults <const> = {
     frameTarget = "ALL",
     xHotSpot = 0,
     yHotSpot = 0,
-    format = "RGBA32",
+    format = "RGB24",
     wLimit = 512,
     hLimit = 512,
 }
