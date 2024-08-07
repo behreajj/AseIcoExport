@@ -23,15 +23,11 @@ local importFileExts <const> = { "ani", "cur", "ico" }
 local exportFileExts <const> = { "ani", "cur", "ico" }
 local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
+local formats <const> = { "RGB24", "RGBA32" }
 
 local defaults <const> = {
-    -- 256x256 ani files don't open properly in Irfanview, but still work
-    -- when assigned to mouse cursor in Windows.
-
     -- TODO: Test how well results work as a favicon:
     -- https://stackoverflow.com/questions/25952907/what-is-the-best-practice-for-creating-a-favicon-on-a-web-site
-
-    -- TODO: Support format options for export, e.g., 24 v. 32 bit.
 
     -- TODO: Multiple resolutions for an image when only one frame?
 
@@ -41,8 +37,9 @@ local defaults <const> = {
     frameTarget = "ALL",
     xHotSpot = 0,
     yHotSpot = 0,
+    format = "RGBA32",
     wLimit = 512,
-    hLimit = 512
+    hLimit = 512,
 }
 
 ---@param x integer
@@ -692,6 +689,7 @@ end
 ---@param extIsCur boolean
 ---@param xHotSpot number
 ---@param yHotSpot number
+---@param format string
 ---@return string
 ---@nodiscard
 local function writeIcoCur(
@@ -701,12 +699,13 @@ local function writeIcoCur(
     alphaIndexSprite,
     hasBkg,
     extIsCur,
-    xHotSpot,
-    yHotSpot)
+    xHotSpot, yHotSpot,
+    format)
     -- Cache methods.
     local ceil <const> = math.ceil
     local floor <const> = math.floor
     local strbyte <const> = string.byte
+    local strchar <const> = string.char
     local strpack <const> = string.pack
     local tconcat <const> = table.concat
 
@@ -722,13 +721,15 @@ local function writeIcoCur(
     -- each ico entry is 16 bytes.
     local icoOffset = 6 + lenChosenImages * 16
 
-    -- Threshold for alpha at or below which mask is set to ignore.
-    -- TODO: If you wanted to support, e.g., 24 bit in the future, this would
-    -- determine when 1 bit alpha is set to opaque or transparent.
-    local maskThreshold = 0
+    local fmtIsRgb24 <const> = format == "RGB24"
 
-    -- TODO: Change based on format.
+    -- Threshold for alpha at or below which mask is set to ignore.
+    local maskThreshold = 0
     local bpp = 32
+    if fmtIsRgb24 then
+        maskThreshold = 127
+        bpp = 24
+    end
 
     local k = 0
     while k < lenChosenImages do
@@ -748,13 +749,19 @@ local function writeIcoCur(
         local hImage2 <const> = hImage + hImage
         local areaWrite <const> = wImage * hImage
 
-        -- To support indexed color mode, numColors would have to be set
-        -- to the palette length.
         local dWordsPerRow <const> = ceil(wImage / 32)
         local lenDWords <const> = dWordsPerRow * hImage
 
-        -- TODO: Change based on format.
+        -- To support indexed color mode, numColors would have to be set
+        -- to the palette length.
+
         local lenColorMask = areaWrite * 4 -- 4 bytes per pixel
+        local bytesPerRow <const> = 4 * ceil((wImage * bpp) / 32)
+        local hbpr <const> = hImage * bytesPerRow
+        if fmtIsRgb24 then
+            lenColorMask = hbpr
+        end
+
         local lenTrnspMask <const> = lenDWords * 4 -- 4 bytes per pixel
         local icoSize <const> = 40
             + lenColorMask
@@ -808,27 +815,66 @@ local function writeIcoCur(
 
         -- In bitmap format, y axis is from bottom to top.
         if colorModeSprite == ColorMode.RGB then
-            local m = 0
-            while m < areaWrite do
-                local x <const> = m % wImage
-                local y <const> = m // wImage
+            if fmtIsRgb24 then
+                local m = 0
+                while m < hbpr do
+                    local xByte <const> = m % bytesPerRow
+                    local x <const> = xByte // 3
 
-                local yFlipped <const> = hImage - 1 - y
-                local n4 <const> = 4 * (yFlipped * wImage + x)
+                    local c8 = 0
+                    if x < wImage then
+                        local y <const> = m // bytesPerRow
+                        local yFlipped <const> = hImage - 1 - y
+                        local n4 <const> = 4 * (yFlipped * wImage + x)
+                        local a8 <const> = strbyte(srcByteStr, 4 + n4)
+                        if a8 > maskThreshold then
+                            local channel <const> = 2 - xByte % 3
+                            c8 = strbyte(srcByteStr, 1 + channel + n4)
+                        end
+                    end
 
-                local r8, g8, b8, a8 <const> = strbyte(
-                    srcByteStr, 1 + n4, 4 + n4)
-                if a8 <= maskThreshold then r8, g8, b8 = 0, 0, 0 end
-                trgColorBytes[1 + m] = strpack("B B B B", b8, g8, r8, a8)
+                    trgColorBytes[1 + m] = strchar(c8)
+                    m = m + 1
+                end
 
-                local draw <const> = a8 <= maskThreshold and 1 or 0
-                local xDWord <const> = x // 32
-                local xBit <const> = 31 - x % 32
-                local idxDWord <const> = y * dWordsPerRow + xDWord
-                local dWord <const> = dWords[1 + idxDWord] or 0
-                dWords[1 + idxDWord] = dWord | (draw << xBit)
+                local n = 0
+                while n < areaWrite do
+                    local x <const> = n % wImage
+                    local y <const> = n // wImage
+                    local yFlipped <const> = hImage - 1 - y
+                    local n4 <const> = 4 * (yFlipped * wImage + x)
+                    local a8 <const> = strbyte(srcByteStr, 4 + n4)
+                    local draw <const> = a8 <= maskThreshold and 1 or 0
+                    local xDWord <const> = x // 32
+                    local xBit <const> = 31 - x % 32
+                    local idxDWord <const> = y * dWordsPerRow + xDWord
+                    local dWord <const> = dWords[1 + idxDWord] or 0
+                    dWords[1 + idxDWord] = dWord | (draw << xBit)
+                    n = n + 1
+                end
+            else
+                local m = 0
+                while m < areaWrite do
+                    local x <const> = m % wImage
+                    local y <const> = m // wImage
 
-                m = m + 1
+                    local yFlipped <const> = hImage - 1 - y
+                    local n4 <const> = 4 * (yFlipped * wImage + x)
+
+                    local r8, g8, b8, a8 <const> = strbyte(
+                        srcByteStr, 1 + n4, 4 + n4)
+                    if a8 <= maskThreshold then r8, g8, b8 = 0, 0, 0 end
+                    trgColorBytes[1 + m] = strpack("B B B B", b8, g8, r8, a8)
+
+                    local draw <const> = a8 <= maskThreshold and 1 or 0
+                    local xDWord <const> = x // 32
+                    local xBit <const> = 31 - x % 32
+                    local idxDWord <const> = y * dWordsPerRow + xDWord
+                    local dWord <const> = dWords[1 + idxDWord] or 0
+                    dWords[1 + idxDWord] = dWord | (draw << xBit)
+
+                    m = m + 1
+                end
             end
         elseif colorModeSprite == ColorMode.GRAY then
             local m = 0
@@ -929,6 +975,7 @@ end
 ---@param jifDefault integer
 ---@param xHotSpot number
 ---@param yHotSpot number
+---@param format string
 ---@return string
 ---@nodiscard
 local function writeAni(
@@ -940,7 +987,8 @@ local function writeAni(
     alphaIndexSprite,
     hasBkg,
     jifDefault,
-    xHotSpot, yHotSpot)
+    xHotSpot, yHotSpot,
+    format)
     local strpack <const> = string.pack
     local tconcat <const> = table.concat
 
@@ -968,7 +1016,9 @@ local function writeAni(
             colorModeSprite,
             alphaIndexSprite,
             hasBkg,
-            true, xHotSpot, yHotSpot)
+            true,
+            xHotSpot, yHotSpot,
+            format)
         local iconStr <const> = tconcat({
             "icon",
             strpack("<I4", #icoFileStr),
@@ -1018,11 +1068,14 @@ local function writeAni(
         seqStrConcat
     })
 
-    -- TODO: Change based on format.
     local bpp = 32
+    if format == "RGB24" then
+        bpp = 24
+    end
 
     local aniHeader <const> = strpack(
         "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
+        -- TODO: Replace this with "c c c c" then write chars.
         0x68696E61,      -- 01 00 "anih"
         36,              -- 02 04
         36,              -- 03 04
@@ -1030,7 +1083,7 @@ local function writeAni(
         lenDisplaySeq,   -- 05 12
         wAni,            -- 06 16
         hAni,            -- 07 20
-        bpp,              -- 08 24 Bit count
+        bpp,             -- 08 24 Bit count
         1,               -- 09 28 Bit planes
         jifDefault,      -- 10 32 Default rate jiffies
         3)               -- 11 36 0b11 Includes seq chunk, uses icos
@@ -1328,6 +1381,16 @@ dlg:slider {
 
 dlg:newrow { always = false }
 
+dlg:combobox {
+    id = "format",
+    label = "Format:",
+    option = defaults.format,
+    options = formats,
+    focus = false,
+}
+
+dlg:newrow { always = false }
+
 dlg:file {
     id = "exportFilepath",
     label = "Save:",
@@ -1362,6 +1425,8 @@ dlg:button {
             or defaults.xHotSpot --[[@as integer]]
         local yHotSpot100 <const> = args.yHotSpot
             or defaults.yHotSpot --[[@as integer]]
+        local format <const> = args.format
+            or defaults.format --[[@as string]]
         local exportFilepath <const> = args.exportFilepath --[[@as string]]
 
         local wLimit <const> = defaults.wLimit
@@ -1863,8 +1928,8 @@ dlg:button {
                 alphaIndexSprite,
                 hasBkg,
                 jiffDefault,
-                xHotSpot,
-                yHotSpot)
+                xHotSpot, yHotSpot,
+                format)
         else
             finalString = writeIcoCur(
                 chosenImages,
@@ -1873,8 +1938,8 @@ dlg:button {
                 alphaIndexSprite,
                 hasBkg,
                 extIsCur,
-                xHotSpot,
-                yHotSpot)
+                xHotSpot, yHotSpot,
+                format)
         end
         binFile:write(finalString)
         binFile:close()
