@@ -383,6 +383,14 @@ local function readIcoCur(fileData)
                     b8, g8, r8, a8 = strbyte(fileData,
                         dataOffset + 41 + k4,
                         dataOffset + 44 + k4)
+
+                    -- There's an issue with RGB32 as opened in GIMP vs. as
+                    -- set in Windows Control Panel - Hardware and Sound -
+                    -- Devices and Printers -- Mouse . Color must be black to
+                    -- be transparent with XOR mask. However, there's no way
+                    -- to distinguish between RGB32 and RGBA32, so alpha still
+                    -- reads as 0 and image appears blank in image editors.
+                    if a8 == 0 then a8 = 255 end
                 end
 
                 -- print(string.format(
