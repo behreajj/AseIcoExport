@@ -892,7 +892,7 @@ local function writeIcoCur(
                 local b8 <const> = (abgr32 >> 0x10) & 0xff
                 local g8 <const> = (abgr32 >> 0x08) & 0xff
                 local r8 <const> = abgr32 & 0xff
-                trgColorBytes[q] = strpack("B B B B", b8, g8, r8, 0)
+                trgColorBytes[q] = strpack("B B B B", b8, g8, r8, 255)
             end
         else
             -- Default to RGBA32.
