@@ -28,6 +28,9 @@ local defaults <const> = {
     -- 256x256 ani files don't open properly in Irfanview, but still work
     -- when assigned to mouse cursor in Windows.
 
+    -- TODO: Test how well results work as a favicon:
+    -- https://stackoverflow.com/questions/25952907/what-is-the-best-practice-for-creating-a-favicon-on-a-web-site
+
     -- TODO: Support format options for export, e.g., 24 v. 32 bit.
 
     -- TODO: Multiple resolutions for an image when only one frame?
@@ -720,9 +723,12 @@ local function writeIcoCur(
     local icoOffset = 6 + lenChosenImages * 16
 
     -- Threshold for alpha at or below which mask is set to ignore.
-    -- If you wanted to support, e.g., 24 bit in the future, this would
+    -- TODO: If you wanted to support, e.g., 24 bit in the future, this would
     -- determine when 1 bit alpha is set to opaque or transparent.
-    local maskThreshold <const> = 0
+    local maskThreshold = 0
+
+    -- TODO: Change based on format.
+    local bpp = 32
 
     local k = 0
     while k < lenChosenImages do
@@ -746,9 +752,13 @@ local function writeIcoCur(
         -- to the palette length.
         local dWordsPerRow <const> = ceil(wImage / 32)
         local lenDWords <const> = dWordsPerRow * hImage
+
+        -- TODO: Change based on format.
+        local lenColorMask = areaWrite * 4 -- 4 bytes per pixel
+        local lenTrnspMask <const> = lenDWords * 4 -- 4 bytes per pixel
         local icoSize <const> = 40
-            + areaWrite * 4 -- 4 bytes per pixel
-            + lenDWords * 4 -- 4 bytes per dword
+            + lenColorMask
+            + lenTrnspMask
 
         local xHsWrite = 1  -- or bit planes for ico
         local yHsWrite = 32 -- or bits per pixel for ico
@@ -776,7 +786,7 @@ local function writeIcoCur(
             wImage,  -- 4 bytes, image width
             hImage2, -- 4 bytes, image height * 2
             1,       -- 2 bytes, number of planes
-            32,      -- 2 bytes, bits per pixel
+            bpp,     -- 2 bytes, bits per pixel
             0,       -- 4 bytes, compression (unused)
             0,       -- 4 bytes, chunk size excluding header (?)
             0,       -- 4 bytes, x resolution (unused)
@@ -1008,6 +1018,9 @@ local function writeAni(
         seqStrConcat
     })
 
+    -- TODO: Change based on format.
+    local bpp = 32
+
     local aniHeader <const> = strpack(
         "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
         0x68696E61,      -- 01 00 "anih"
@@ -1017,7 +1030,7 @@ local function writeAni(
         lenDisplaySeq,   -- 05 12
         wAni,            -- 06 16
         hAni,            -- 07 20
-        32,              -- 08 24 Bit count
+        bpp,              -- 08 24 Bit count
         1,               -- 09 28 Bit planes
         jifDefault,      -- 10 32 Default rate jiffies
         3)               -- 11 36 0b11 Includes seq chunk, uses icos
