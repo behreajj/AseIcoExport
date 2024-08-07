@@ -13,6 +13,10 @@
 
     Pels per meter
     https://stackoverflow.com/questions/17550545/bmp-image-header-bixpelspermeter
+
+    Gimp Implementation
+    https://github.com/GNOME/gimp/blob/master/plug-ins/file-ico/ico-load.c
+    https://github.com/GNOME/gimp/blob/master/plug-ins/file-ico/ico-export.c
 ]]
 
 local importFileExts <const> = { "ani", "cur", "ico" }
