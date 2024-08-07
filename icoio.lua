@@ -689,7 +689,7 @@ end
 ---@param yHotSpot number
 ---@return string
 ---@nodiscard
-local function writeIco(
+local function writeIcoCur(
     chosenImages,
     chosenPalettes,
     colorModeSprite,
@@ -964,7 +964,7 @@ local function writeAni(
         if wImage > wAni then wAni = wImage end
         if hImage > hAni then hAni = hImage end
 
-        local icoFileStr <const> = writeIco(
+        local icoFileStr <const> = writeIcoCur(
             { chosenImage },
             { chosenPalette },
             colorModeSprite,
@@ -1865,7 +1865,7 @@ dlg:button {
                 xHotSpot,
                 yHotSpot)
         else
-            finalString = writeIco(
+            finalString = writeIcoCur(
                 chosenImages,
                 chosenPalettes,
                 colorModeSprite,
