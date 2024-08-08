@@ -26,16 +26,16 @@ local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 local formats <const> = { "RGB24", "RGB32", "RGBA32" }
 
 local defaults <const> = {
-    -- TODO: Support importing 4 bit indexed and 16 bit RGB?
-    -- TODO: Support exporting 15 bit RGB?
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
     xHotSpot = 0,
     yHotSpot = 0,
     format = "RGB24",
-    wLimit = 512,
-    hLimit = 512,
+    wLimitAni = 256,
+    hLimitAni = 256,
+    wLimitIcoCur = 512,
+    hLimitIcoCur = 512,
 }
 
 ---@param x integer
@@ -728,6 +728,8 @@ local function writeIcoCur(
     local fmtIsRgb24 <const> = format == "RGB24"
     local fmtIsRgb32 <const> = format == "RGB32"
 
+    -- TODO: Maybe the RGBA32 threshold needs to be either 1 or 128
+    -- instead of zero to avoid bugs?
     local maskThreshold = 0
     local bpp = 32
     if fmtIsRgb24 then
@@ -883,9 +885,9 @@ local function writeIcoCur(
                     if channel == 2 then
                         c8 = abgr32 & 0xff
                     elseif channel == 1 then
-                        c8 = (abgr32 >> 0x08) & 0xff
+                        c8 = abgr32 >> 0x08 & 0xff
                     else
-                        c8 = (abgr32 >> 0x10) & 0xff
+                        c8 = abgr32 >> 0x10 & 0xff
                     end
                 end
 
@@ -899,9 +901,9 @@ local function writeIcoCur(
             while q < areaWrite do
                 q = q + 1
                 local abgr32 <const> = abgr32s[q]
-                local a8 <const> = (abgr32 >> 0x18) & 0xff
-                local b8 <const> = (abgr32 >> 0x10) & 0xff
-                local g8 <const> = (abgr32 >> 0x08) & 0xff
+                local a8 <const> = abgr32 >> 0x18 & 0xff
+                local b8 <const> = abgr32 >> 0x10 & 0xff
+                local g8 <const> = abgr32 >> 0x08 & 0xff
                 local r8 <const> = abgr32 & 0xff
                 local a1 <const> = a8 <= maskThreshold and 0 or 255
                 trgColorBytes[q] = strpack("B B B B", b8, g8, r8, a1)
@@ -912,9 +914,9 @@ local function writeIcoCur(
             while q < areaWrite do
                 q = q + 1
                 local abgr32 <const> = abgr32s[q]
-                local a8 <const> = (abgr32 >> 0x18) & 0xff
-                local b8 <const> = (abgr32 >> 0x10) & 0xff
-                local g8 <const> = (abgr32 >> 0x08) & 0xff
+                local a8 <const> = abgr32 >> 0x18 & 0xff
+                local b8 <const> = abgr32 >> 0x10 & 0xff
+                local g8 <const> = abgr32 >> 0x08 & 0xff
                 local r8 <const> = abgr32 & 0xff
                 trgColorBytes[q] = strpack("B B B B", b8, g8, r8, a8)
             end
@@ -1394,6 +1396,16 @@ dlg:combobox {
 
 dlg:newrow { always = false }
 
+dlg:combobox {
+    id = "format",
+    label = "Format:",
+    option = defaults.format,
+    options = formats,
+    focus = false,
+}
+
+dlg:newrow { always = false }
+
 dlg:slider {
     id = "xHotSpot",
     label = "Hot Spot:",
@@ -1408,16 +1420,6 @@ dlg:slider {
     min = 0,
     max = 100,
     value = defaults.yHotSpot,
-    focus = false,
-}
-
-dlg:newrow { always = false }
-
-dlg:combobox {
-    id = "format",
-    label = "Format:",
-    option = defaults.format,
-    options = formats,
     focus = false,
 }
 
@@ -1460,9 +1462,6 @@ dlg:button {
         local format <const> = args.format
             or defaults.format --[[@as string]]
         local exportFilepath <const> = args.exportFilepath --[[@as string]]
-
-        local wLimit <const> = defaults.wLimit
-        local hLimit <const> = defaults.hLimit
 
         if (not exportFilepath) or (#exportFilepath < 1) then
             app.alert {
@@ -1649,6 +1648,15 @@ dlg:button {
         local hasBkg = false
         local spritePalettes <const> = activeSprite.palettes
         local lenSpritePalettes <const> = #spritePalettes
+
+        -- The size restrictions can be pushed to 512 x 512 for ico and cur,
+        -- but not for anis, which should stay at 256 x 256.
+        local wLimit <const> = extIsAni
+            and defaults.wLimitAni
+            or defaults.wLimitIcoCur
+        local hLimit <const> = extIsAni
+            and defaults.hLimitAni
+            or defaults.hLimitIcoCur
 
         ---@type Palette[]
         local chosenPalettes <const> = {}
