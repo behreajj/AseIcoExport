@@ -893,14 +893,18 @@ local function writeIcoCur(
                 trgColorBytes[q] = strchar(c8)
             end
         elseif fmtIsRgb32 then
+            -- If alpha is left as zero, then image editors like GIMP and
+            -- XnView MP will treat the pixels as transparent.
             local q = 0
             while q < areaWrite do
                 q = q + 1
                 local abgr32 <const> = abgr32s[q]
+                local a8 <const> = (abgr32 >> 0x18) & 0xff
                 local b8 <const> = (abgr32 >> 0x10) & 0xff
                 local g8 <const> = (abgr32 >> 0x08) & 0xff
                 local r8 <const> = abgr32 & 0xff
-                trgColorBytes[q] = strpack("B B B B", b8, g8, r8, 0)
+                local a1 <const> = a8 <= maskThreshold and 0 or 255
+                trgColorBytes[q] = strpack("B B B B", b8, g8, r8, a1)
             end
         else
             -- Default to RGBA32.
