@@ -32,6 +32,9 @@ local defaults <const> = {
     xHotSpot = 0,
     yHotSpot = 0,
     format = "RGB24",
+    -- The size restrictions can be pushed to 512 x 512 for ico and cur,
+    -- but not for anis, which should stay at 256 x 256. The 256 limit
+    -- allows anis to be opened in Inkscape, but not Irfanview.
     wLimitAni = 256,
     hLimitAni = 256,
     wLimitIcoCur = 512,
@@ -838,7 +841,7 @@ local function writeIcoCur(
         local o = 0
         while o < areaWrite do
             local abgr32 <const> = abgr32s[1 + o]
-            local a8 <const> = (abgr32 >> 0x18) & 0xff
+            local a8 <const> = abgr32 >> 0x18 & 0xff
             local draw <const> = a8 <= maskThreshold and 1 or 0
 
             local x <const> = o % wImage
@@ -1339,9 +1342,9 @@ dlg:button {
                     local abgr32 <const> = uniqueColors[1 + o]
                     local aseColor <const> = Color {
                         r = abgr32 & 0xff,
-                        g = (abgr32 >> 0x08) & 0xff,
-                        b = (abgr32 >> 0x10) & 0xff,
-                        a = (abgr32 >> 0x18) & 0xff
+                        g = abgr32 >> 0x08 & 0xff,
+                        b = abgr32 >> 0x10 & 0xff,
+                        a = abgr32 >> 0x18 & 0xff
                     }
                     spritePalette:setColor(o, aseColor)
                     o = o + 1
@@ -1649,8 +1652,6 @@ dlg:button {
         local spritePalettes <const> = activeSprite.palettes
         local lenSpritePalettes <const> = #spritePalettes
 
-        -- The size restrictions can be pushed to 512 x 512 for ico and cur,
-        -- but not for anis, which should stay at 256 x 256.
         local wLimit <const> = extIsAni
             and defaults.wLimitAni
             or defaults.wLimitIcoCur
