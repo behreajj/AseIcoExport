@@ -26,6 +26,7 @@ local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 local formats <const> = { "RGB24", "RGB32", "RGBA32" }
 
 local defaults <const> = {
+    -- TODO: Consolidate with bmp export script?
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",

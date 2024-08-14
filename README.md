@@ -6,7 +6,7 @@ This an [Aseprite](https://www.aseprite.org/) script to export `ani`s, `cur`s an
 
 Aseprite can load and save `ico`s, but the files are unreadable by other graphics editors, and do not support alpha even when they should.
 
-Export is limited to to the size 512 by 512 pixels for `ico`s and `cur`s, 256 by 256 for `ani`s. Image dimensions are rounded to the next greatest power of two (8, 16, 32, 64, 128, 256). Each frame is stored as a separate entry in the same file; for `ico`s and `cur`s, frames are treated as the same image at different resolutions.
+Export is limited to to the size 512 by 512 pixels for `ico`s and `cur`s, 256 by 256 for `ani`s. Image dimensions are increased to the next greater power of two (8, 16, 32, 64, 128, 256). Each frame is stored as a separate entry in the same file; for `ico`s and `cur`s, frames are treated as the same image at different resolutions.
 
 Import is limited to 8 bit indexed with 256 color palette; 24 bit RGB with 1 bit alpha; and 32 bit RGBA. The opened sprite is always in RGB color mode, regardless of the file format. Files containing compressed png data are not supported. *This script does not import Aseprite generated files.*
 
