@@ -17,8 +17,6 @@
     Gimp Implementation
     https://github.com/GNOME/gimp/blob/master/plug-ins/file-ico/ico-load.c
     https://github.com/GNOME/gimp/blob/master/plug-ins/file-ico/ico-export.c
-
-    Cosmigo Pro Motion and Irfanview have issues with 24 bit RGB alpha.
 ]]
 
 local importFileExts <const> = { "ani", "cur", "ico" }
@@ -29,14 +27,12 @@ local formats <const> = { "RGB24", "RGB32", "RGBA32" }
 
 local defaults <const> = {
     -- TODO: Consolidate with bmp export script?
-    -- TODO: Allow user to customize alpha threshold?
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
     xHotSpot = 0,
     yHotSpot = 0,
     format = "RGB24",
-    maskThreshold = 127,
     -- The size restrictions can be pushed to 512 x 512 for ico and cur,
     -- but not for anis, which should stay at 256 x 256. The 256 limit
     -- allows anis to be opened in Inkscape, but not Irfanview.
@@ -532,6 +528,7 @@ local function readAni(fileData)
 
             jiffDefault = jiffDefTrial --[[@as integer]]
 
+            -- TODO: Is it possible to support reading raw bmp images?
             -- Even if this code works correctly, it's not worth trusting these
             -- flags. Instead, search for seq chunks and test for icos.
             local usesIcoCurs <const> = (flags & 1) == 1
@@ -696,7 +693,6 @@ end
 ---@param chosenPalettes Palette[]
 ---@param colorModeSprite ColorMode
 ---@param alphaIndexSprite integer
----@param maskThreshold integer
 ---@param hasBkg boolean
 ---@param extIsCur boolean
 ---@param xHotSpot number
@@ -709,7 +705,7 @@ local function writeIcoCur(
     chosenPalettes,
     colorModeSprite,
     alphaIndexSprite,
-    maskThreshold, hasBkg,
+    hasBkg,
     extIsCur,
     xHotSpot, yHotSpot,
     format)
@@ -736,10 +732,15 @@ local function writeIcoCur(
     local fmtIsRgb24 <const> = format == "RGB24"
     local fmtIsRgb32 <const> = format == "RGB32"
 
+    -- TODO: Maybe the RGBA32 threshold needs to be either 1 or 128
+    -- instead of zero to avoid bugs?
+    local maskThreshold = 0
     local bpp = 32
     if fmtIsRgb24 then
+        maskThreshold = 127
         bpp = 24
     elseif fmtIsRgb32 then
+        maskThreshold = 127
         bpp = 32
     end
 
@@ -1008,7 +1009,6 @@ end
 ---@param jiffies integer[]
 ---@param colorModeSprite ColorMode
 ---@param alphaIndexSprite integer
----@param maskThreshold integer
 ---@param hasBkg boolean
 ---@param jifDefault integer
 ---@param xHotSpot number
@@ -1023,7 +1023,7 @@ local function writeAni(
     jiffies,
     colorModeSprite,
     alphaIndexSprite,
-    maskThreshold, hasBkg,
+    hasBkg,
     jifDefault,
     xHotSpot, yHotSpot,
     format)
@@ -1053,7 +1053,7 @@ local function writeAni(
             { chosenPalette },
             colorModeSprite,
             alphaIndexSprite,
-            maskThreshold, hasBkg,
+            hasBkg,
             true,
             xHotSpot, yHotSpot,
             format)
@@ -1113,6 +1113,7 @@ local function writeAni(
 
     local aniHeader <const> = strpack(
         "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
+        -- TODO: Replace this with "c c c c" then write chars.
         0x68696E61,      -- 01 00 "anih"
         36,              -- 02 04
         36,              -- 03 04
@@ -1157,7 +1158,6 @@ dlg:slider {
     min = 1,
     max = 60,
     value = defaults.fps,
-    focus = false,
 }
 
 dlg:newrow { always = false }
@@ -1411,18 +1411,6 @@ dlg:combobox {
 dlg:newrow { always = false }
 
 dlg:slider {
-    id = "maskThreshold",
-    label = "Mask:",
-    min = 0,
-    max = 254,
-    value = defaults.maskThreshold,
-    visible = true,
-    focus = false,
-}
-
-dlg:newrow { always = false }
-
-dlg:slider {
     id = "xHotSpot",
     label = "Hot Spot:",
     min = 0,
@@ -1477,8 +1465,6 @@ dlg:button {
             or defaults.yHotSpot --[[@as integer]]
         local format <const> = args.format
             or defaults.format --[[@as string]]
-        local maskThreshold = args.maskThreshold
-            or defaults.maskThreshold --[[@as integer]]
         local exportFilepath <const> = args.exportFilepath --[[@as string]]
 
         if (not exportFilepath) or (#exportFilepath < 1) then
@@ -1982,7 +1968,7 @@ dlg:button {
                 jiffies,
                 colorModeSprite,
                 alphaIndexSprite,
-                maskThreshold, hasBkg,
+                hasBkg,
                 jiffDefault,
                 xHotSpot, yHotSpot,
                 format)
@@ -1992,7 +1978,7 @@ dlg:button {
                 chosenPalettes,
                 colorModeSprite,
                 alphaIndexSprite,
-                maskThreshold, hasBkg,
+                hasBkg,
                 extIsCur,
                 xHotSpot, yHotSpot,
                 format)
