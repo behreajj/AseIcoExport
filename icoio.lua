@@ -191,38 +191,37 @@ local function readIcoCur(fileData)
         -- Calculations for draw mask, with 1 bit per alpha.
         local areaImage <const> = bmpWidth * bmpHeight
         local dWordsPerRowMask <const> = ceil(bmpWidth / 32)
-        local lenDWords <const> = dWordsPerRowMask * bmpHeight
 
         local lenColorMask = areaImage * 4
         if bmpBpp == 24 then
             lenColorMask = ceil((bmpWidth * bmpBpp) / 32) * bmpHeight * 4
         elseif bmpBpp == 16 then
             lenColorMask = ceil((bmpWidth * bmpBpp) / 32) * bmpHeight * 4
-        elseif bmpBpp <= 8 then
-            lenColorMask = numColors * 4 + bmpHeight * bmpWidth
+        elseif bmpBpp == 8 then
+            lenColorMask = numColors * 4 + bmpWidth * bmpHeight
         elseif bmpBpp == 4 then
-            -- TODO: This is probably different.
-            lenColorMask = numColors * 4 + bmpHeight * bmpWidth
-        elseif bmpBpp == 2 then
-            -- TODO: This is probably different.
-            lenColorMask = numColors * 4 + bmpHeight * bmpWidth
+            lenColorMask = numColors * 4
+                + ceil((bmpWidth * bmpBpp) / 32) * bmpHeight * 4
         elseif bmpBpp == 1 then
-            -- TODO: This is probably different.
-            lenColorMask = numColors * 4 + bmpHeight * bmpWidth
+            lenColorMask = numColors * 4
+                + ceil((bmpWidth * bmpBpp) / 32) * bmpHeight * 4
         end
-        local dataSizeCalc <const> = 40 + lenColorMask + lenDWords * 4
 
+        local lenDWords <const> = dWordsPerRowMask * bmpHeight
+        -- local dataSizeCalc <const> = 40 + lenColorMask + lenDWords * 4
         -- print(strfmt(
         --     "dataSize: %d, dataSizeCalc: %d (%s)",
         --     dataSize, dataSizeCalc,
         --     dataSize == dataSizeCalc and "match" or "mismatch"))
 
-        -- local alphaMapOffset <const> = dataOffset + dataSize - lenDWords * 4
         local alphaMapOffset <const> = dataOffset + 40 + lenColorMask
 
         -- print(strfmt(
-        --     "dWordsPerRowMask: %d, lenDWords: %d, alphaMapOffset: %d",
-        --     dWordsPerRowMask, lenDWords, alphaMapOffset))
+        --     "lenColorMask: %d, dWordsPerRowMask: %d",
+        --     lenColorMask, dWordsPerRowMask))
+        -- print(strfmt(
+        --     "lenDWords: %d, alphaMapOffset: %d",
+        --     lenDWords, alphaMapOffset))
 
         ---@type integer[]
         local masks <const> = {}
@@ -275,10 +274,7 @@ local function readIcoCur(fileData)
 
             local k = 0
             while k < areaImage do
-                local a8 = 0
-                local b8 = 0
-                local g8 = 0
-                local r8 = 0
+                local a8, b8, g8, r8 = 0, 0, 0, 0
 
                 local x <const> = k % bmpWidth
                 local yFlipped <const> = k // bmpWidth
@@ -321,10 +317,7 @@ local function readIcoCur(fileData)
 
             local k = 0
             while k < areaImage do
-                local a8 = 0
-                local b8 = 0
-                local g8 = 0
-                local r8 = 0
+                local a8, b8, g8, r8 = 0, 0, 0, 0
 
                 local x <const> = k % bmpWidth
                 local yFlipped <const> = k // bmpWidth
@@ -372,10 +365,7 @@ local function readIcoCur(fileData)
 
             local k = 0
             while k < areaImage do
-                local a8 = 0
-                local b8 = 0
-                local g8 = 0
-                local r8 = 0
+                local a8, b8, g8, r8 = 0, 0, 0, 0
 
                 local x <const> = k % bmpWidth
                 local yFlipped <const> = k // bmpWidth
@@ -408,17 +398,14 @@ local function readIcoCur(fileData)
         elseif bmpBpp == 32 then
             local k = 0
             while k < areaImage do
-                local a8 = 0
-                local b8 = 0
-                local g8 = 0
-                local r8 = 0
+                local a8, b8, g8, r8 = 0, 0, 0, 0
 
                 local x <const> = k % bmpWidth
                 local yFlipped <const> = k // bmpWidth
 
                 local mask <const> = masks[1 + k]
                 if mask == 0 then
-                    local k4 <const> = 4 * k
+                    local k4 <const> = k * 4
                     b8, g8, r8, a8 = strbyte(fileData,
                         dataOffset + 41 + k4,
                         dataOffset + 44 + k4)
