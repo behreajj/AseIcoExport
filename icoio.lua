@@ -26,7 +26,6 @@ local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 local formats <const> = { "RGB24", "RGB32", "RGBA32" }
 
 local defaults <const> = {
-    -- TODO: Consolidate with bmp export script?
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -129,20 +128,20 @@ local function readIcoCur(fileData)
             "B B B B <I2 <I2 <I4 <I4",
             strsub(fileData, cursor + 1, cursor + 16))
 
-        if icoWidth == 0 then icoWidth = 256 end
-        if icoHeight == 0 then icoHeight = 256 end
-        if numColors == 0 then numColors = 256 end
-
-        -- print(h)
-        -- print(string.format("icoWidth: %d, icoHeight: %d", icoWidth, icoHeight))
-        -- print(string.format("numColors: %d", numColors))
-        -- print(string.format("reserved: %d", reserved))
+        -- print(strfmt("Entry: %d", h))
+        -- print(strfmt("icoWidth: %d (0x%02x)", icoWidth, icoWidth))
+        -- print(strfmt("icoHeight: %d (0x%02x)", icoHeight, icoHeight))
+        -- print(strfmt("numColors: %d (0x%02x)", numColors, numColors))
+        -- print(strfmt("reserved: %d (0x%02x)", reserved, reserved))
         -- if typeIsCur then
-        --     print(string.format("xHotSpot: %d, yHotSpot: %d", xHotSpot, yHotSpot))
+        --     print(strfmt("xHotSpot: %d (0x%04x)", xHotSpot, xHotSpot))
+        --     print(strfmt("yHotSpot: %d (0x%04x)", yHotSpot, yHotSpot))
         -- else
-        --     print(string.format("icoPlanes: %d, icoBpp: %d", xHotSpot, yHotSpot))
+        --     print(strfmt("icoPlanes: %d (0x%04x)", xHotSpot, xHotSpot))
+        --     print(strfmt("icoBpp: %d (0x%04x)", yHotSpot, yHotSpot))
         -- end
-        -- print(string.format("dataSize: %d, dataOffset: %d", dataSize, dataOffset))
+        -- print(strfmt("dataSize: %d (0x%08x)", dataSize, dataSize))
+        -- print(strfmt("dataOffset: %d (0x%08x)", dataOffset, dataOffset))
 
         -- bmpSize is apparently not used vs. ico dataSize?
         local bmpHeaderSize <const>,
@@ -159,19 +158,27 @@ local function readIcoCur(fileData)
             "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
             strsub(fileData, dataOffset + 1, dataOffset + 40))
 
+        if icoWidth == 0 then icoWidth = 256 end
+        if icoHeight == 0 then icoHeight = 256 end
+        if numColors == 0 then numColors = 256 end
+
         -- Calculate the height here in case you want to try to verify the
         -- data size.
         local bmpHeight <const> = bmpHeight2 // 2 --[[@as integer]]
         if bmpWidth > wMax then wMax = bmpWidth end
         if bmpHeight > hMax then hMax = bmpHeight end
 
-        -- print(string.format("bmpHeaderSize: %d", bmpHeaderSize))
-        -- print(string.format("bmpWidth: %d, bmpHeight2: %d", bmpWidth, bmpHeight2))
-        -- print(string.format("bmpPlanes: %d, bmpBpp: %d", bmpPlanes, bmpBpp))
-        -- print(string.format("bmpCompress: %d", bmpCompress))
-        -- print(string.format("bmpChunk: %d", bmpChunk))
-        -- print(string.format("bmpXRes: %d, bmpYRes: %d", bmpXRes, bmpYRes))
-        -- print(string.format("bmpUsed: %d, bmpKey: %d", bmpUsed, bmpKey))
+        -- print(strfmt("bmpHeaderSize: %d (0x%08x)", bmpHeaderSize, bmpHeaderSize))
+        -- print(strfmt("bmpWidth: %d (0x%08x)", bmpWidth, bmpWidth))
+        -- print(strfmt("bmpHeight2: %d (0x%08x)", bmpHeight2, bmpHeight2))
+        -- print(strfmt("bmpPlanes: %d (0x%04x)", bmpPlanes, bmpPlanes))
+        -- print(strfmt("bmpBpp: %d (0x%04x)", bmpBpp, bmpBpp))
+        -- print(strfmt("bmpCompress: %d (0x%08x)", bmpCompress, bmpCompress))
+        -- print(strfmt("bmpChunk: %d (0x%08x)", bmpChunk, bmpChunk))
+        -- print(strfmt("bmpXRes: %d (0x%08x)", bmpXRes, bmpXRes))
+        -- print(strfmt("bmpYRes: %d (0x%08x)", bmpYRes, bmpYRes))
+        -- print(strfmt("bmpUsed: %d (0x%08x)", bmpUsed, bmpUsed))
+        -- print(strfmt("bmpKey: %d (0x%08x)", bmpKey, bmpKey))
 
         if bmpHeaderSize ~= 40 or reserved ~= 0 then
             return images, wMax, hMax, uniqueColors, {
@@ -185,9 +192,36 @@ local function readIcoCur(fileData)
         local areaImage <const> = bmpWidth * bmpHeight
         local dWordsPerRowMask <const> = ceil(bmpWidth / 32)
         local lenDWords <const> = dWordsPerRowMask * bmpHeight
-        local alphaMapOffset <const> = dataOffset + dataSize - lenDWords * 4
 
-        -- print(string.format("dWordsPerRowMask: %d, lenDWords: %d, alphaMapOffset: %d",
+        local lenColorMask = areaImage * 4
+        if bmpBpp == 24 then
+            lenColorMask = ceil((bmpWidth * bmpBpp) / 32) * bmpHeight * 4
+        elseif bmpBpp == 16 then
+            lenColorMask = ceil((bmpWidth * bmpBpp) / 32) * bmpHeight * 4
+        elseif bmpBpp <= 8 then
+            lenColorMask = numColors * 4 + bmpHeight * bmpWidth
+        elseif bmpBpp == 4 then
+            -- TODO: This is probably different.
+            lenColorMask = numColors * 4 + bmpHeight * bmpWidth
+        elseif bmpBpp == 2 then
+            -- TODO: This is probably different.
+            lenColorMask = numColors * 4 + bmpHeight * bmpWidth
+        elseif bmpBpp == 1 then
+            -- TODO: This is probably different.
+            lenColorMask = numColors * 4 + bmpHeight * bmpWidth
+        end
+        local dataSizeCalc <const> = 40 + lenColorMask + lenDWords * 4
+
+        -- print(strfmt(
+        --     "dataSize: %d, dataSizeCalc: %d (%s)",
+        --     dataSize, dataSizeCalc,
+        --     dataSize == dataSizeCalc and "match" or "mismatch"))
+
+        -- local alphaMapOffset <const> = dataOffset + dataSize - lenDWords * 4
+        local alphaMapOffset <const> = dataOffset + 40 + lenColorMask
+
+        -- print(strfmt(
+        --     "dWordsPerRowMask: %d, lenDWords: %d, alphaMapOffset: %d",
         --     dWordsPerRowMask, lenDWords, alphaMapOffset))
 
         ---@type integer[]
@@ -218,7 +252,8 @@ local function readIcoCur(fileData)
                 local j4 <const> = j * 4
                 local b8 <const>, g8 <const>, r8 <const> = strbyte(
                     fileData, dataOffset + 41 + j4, dataOffset + 43 + j4)
-                -- print(string.format(
+
+                -- print(strfmt(
                 --     "j: %d, r8: %03d, g8: %03d, b8: %03d, #%06X",
                 --     j, r8, g8, b8,
                 --     (r8 << 0x10 | g8 << 0x08 | b8)))
@@ -390,7 +425,7 @@ local function readIcoCur(fileData)
 
                     -- There's an issue with RGB32 as opened in GIMP vs. as
                     -- set in Windows Control Panel - Hardware and Sound -
-                    -- Devices and Printers -- Mouse . Color must be black to
+                    -- Devices and Printers - Mouse . Color must be black to
                     -- be transparent with XOR mask. However, there's no way
                     -- to distinguish between RGB32 and RGBA32, so alpha still
                     -- reads as 0 and image appears blank in image editors.
@@ -528,7 +563,6 @@ local function readAni(fileData)
 
             jiffDefault = jiffDefTrial --[[@as integer]]
 
-            -- TODO: Is it possible to support reading raw bmp images?
             -- Even if this code works correctly, it's not worth trusting these
             -- flags. Instead, search for seq chunks and test for icos.
             local usesIcoCurs <const> = (flags & 1) == 1
@@ -624,7 +658,6 @@ local function readAni(fileData)
                     end
 
                     local lenSubImages <const> = #subImages
-                    -- TODO: Should any of these conditions return error messages instead?
                     if lenSubImages > 0
                         and subWMax > 0
                         and subHMax > 0 then
@@ -732,8 +765,6 @@ local function writeIcoCur(
     local fmtIsRgb24 <const> = format == "RGB24"
     local fmtIsRgb32 <const> = format == "RGB32"
 
-    -- TODO: Maybe the RGBA32 threshold needs to be either 1 or 128
-    -- instead of zero to avoid bugs?
     local maskThreshold = 0
     local bpp = 32
     if fmtIsRgb24 then
@@ -1113,7 +1144,6 @@ local function writeAni(
 
     local aniHeader <const> = strpack(
         "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
-        -- TODO: Replace this with "c c c c" then write chars.
         0x68696E61,      -- 01 00 "anih"
         36,              -- 02 04
         36,              -- 03 04
