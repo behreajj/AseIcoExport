@@ -239,7 +239,7 @@ local function readIcoCur(fileData)
             masks[1 + i] = mask
             i = i + 1
         end
-        -- print(tconcat(alphaMask, ", "))
+        -- print(tconcat(masks, ", "))
 
         ---@type integer[]
         local palAbgr32s <const> = {}
@@ -312,7 +312,7 @@ local function readIcoCur(fileData)
         elseif bmpBpp == 8 then
             local dWordsPerRow8 <const> = ceil(bmpWidth / 4)
             local capacityPerRow8 <const> = 4 * dWordsPerRow8
-            -- print(string.format("dWordsPerRow8: %d, capacityPerRow8: %d",
+            -- print(strfmt("dWordsPerRow8: %d, capacityPerRow8: %d",
             --     dWordsPerRow8, capacityPerRow8))
 
             local k = 0
