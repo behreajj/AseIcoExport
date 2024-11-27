@@ -143,7 +143,7 @@ local function readIcoCur(fileData)
         -- print(strfmt("dataSize: %d (0x%08x)", dataSize, dataSize))
         -- print(strfmt("dataOffset: %d (0x%08x)", dataOffset, dataOffset))
 
-        -- bmpSize is apparently not used vs. ico dataSize?
+        -- Unlike bmp format, seems like width and height are unsigned?
         local bmpHeaderSize <const>,
         bmpWidth <const>,
         bmpHeight2 <const>,
@@ -207,7 +207,7 @@ local function readIcoCur(fileData)
                 + ceil((bmpWidth * bmpBpp) / 32) * bmpHeight * 4
         end
 
-        local lenDWords <const> = dWordsPerRowMask * bmpHeight
+        -- local lenDWords <const> = dWordsPerRowMask * bmpHeight
         -- local dataSizeCalc <const> = 40 + lenColorMask + lenDWords * 4
         -- print(strfmt(
         --     "dataSize: %d, dataSizeCalc: %d (%s)",
@@ -986,6 +986,7 @@ local function writeIcoCur(
         entryHeaders[k] = entryHeader
         icoOffset = icoOffset + icoSize
 
+        -- Unlike bmp format, seems like width and height are unsigned?
         local bmpHeader <const> = strpack(
             "<I4 <I4 <I4 <I2 <I2 <I4 <I4 <I4 <I4 <I4 <I4",
             40,      -- 4 bytes, header size
