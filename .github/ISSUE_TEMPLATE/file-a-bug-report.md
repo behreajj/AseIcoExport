@@ -11,7 +11,7 @@ assignees: ''
 For example, Windows 11.
 
 **Aseprite version**
-The current supported version is 1.3.7.
+The current supported version is 1.3.13.
 
 **Extension**
 Which file extension caused the issue (ani, cur, ico)?

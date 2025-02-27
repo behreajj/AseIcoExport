@@ -12,7 +12,7 @@ Import is limited to 8 bit indexed with 256 color palette; 24 bit RGB with 1 bit
 
 To read more about the format, see the [Wikipedia](https://en.wikipedia.org/wiki/ICO_(file_format)) entry and "[The evolution of the ICO file format](https://devblogs.microsoft.com/oldnewthing/20101018-00/?p=12513)" by Raymond Chen.
 
-*This script was developed and tested in Aseprite version 1.3.7 on Windows 10.*
+*This script was developed and tested in Aseprite version 1.3.14-beta1 on Windows 11.*
 
 ## Download
 

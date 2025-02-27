@@ -26,6 +26,7 @@ local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
 local formats <const> = { "RGB24", "RGB32", "RGBA32" }
 
 local defaults <const> = {
+    -- TODO: Support 8 bit indexed?
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
@@ -161,6 +162,14 @@ local function readIcoCur(fileData)
         if icoWidth == 0 then icoWidth = 256 end
         if icoHeight == 0 then icoHeight = 256 end
         if numColors == 0 then numColors = 256 end
+
+        -- These checks are equal to zero, not less than or equal to, in case
+        -- negative bitmap dimensions are supported.
+        if bmpWidth == 0 or bmpHeight2 == 0 then
+            return images, wMax, hMax, uniqueColors, {
+                "Invalid bitmap image dimensions."
+            }
+        end
 
         -- Calculate the height here in case you want to try to verify the
         -- data size.
