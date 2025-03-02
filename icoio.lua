@@ -425,6 +425,8 @@ local function readIcoCur(fileData)
                     -- be transparent with XOR mask. However, there's no way
                     -- to distinguish between RGB32 and RGBA32, so alpha still
                     -- reads as 0 and image appears blank in image editors.
+                    -- The compensation below leads to other issues where zero
+                    -- alpha colors with non-zero rgb will appear as opaque.
                     if a8 == 0 then a8 = 255 end
                 end
 
