@@ -405,6 +405,21 @@ local function readIcoCur(fileData)
                 k = k + 1
             end
         elseif bmpBpp == 32 then
+            -- There's an issue with RGB32 as opened in GIMP vs. as
+            -- set in Windows Control Panel - Hardware and Sound -
+            -- Devices and Printers - Mouse . Color must be black to
+            -- be transparent with XOR mask. However, there's no way
+            -- to distinguish between RGB32 and RGBA32, so alpha still
+            -- reads as 0 and image appears blank.
+            --
+            -- The alpha cannot just be set to 255 if it is zero within
+            -- the mask clause above, as improperly formatted RGBA32
+            -- icos will have zero alpha colors with non-zero RGB.
+
+            ---@type integer[]
+            local abgr32Arr <const> = {}
+            local allZeroAlpha = true
+
             local k = 0
             while k < areaImage do
                 local a8, b8, g8, r8 = 0, 0, 0, 0
@@ -418,16 +433,7 @@ local function readIcoCur(fileData)
                     b8, g8, r8, a8 = strbyte(fileData,
                         dataOffset + 41 + k4,
                         dataOffset + 44 + k4)
-
-                    -- There's an issue with RGB32 as opened in GIMP vs. as
-                    -- set in Windows Control Panel - Hardware and Sound -
-                    -- Devices and Printers - Mouse . Color must be black to
-                    -- be transparent with XOR mask. However, there's no way
-                    -- to distinguish between RGB32 and RGBA32, so alpha still
-                    -- reads as 0 and image appears blank in image editors.
-                    -- The compensation below leads to other issues where zero
-                    -- alpha colors with non-zero rgb will appear as opaque.
-                    if a8 == 0 then a8 = 255 end
+                    allZeroAlpha = allZeroAlpha and a8 == 0
                 end
 
                 -- print(string.format(
@@ -437,16 +443,24 @@ local function readIcoCur(fileData)
 
                 local y <const> = bmpHeight - 1 - yFlipped
                 local idxAse <const> = y * bmpWidth + x
-                byteStrs[1 + idxAse] = strpack("B B B B", r8, g8, b8, a8)
-
                 local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
+                abgr32Arr[1 + idxAse] = abgr32
                 if not abgr32Dict[abgr32] then
                     dictCursor = dictCursor + 1
                     abgr32Dict[abgr32] = dictCursor
                 end
 
                 k = k + 1
-            end
+            end -- End pixels loop.
+
+            local alphaMask <const> = allZeroAlpha
+                and 0xff000000
+                or 0x00000000
+            local m = 0
+            while m < areaImage do
+                m = m + 1
+                byteStrs[m] = strpack("<I4", alphaMask | abgr32Arr[m])
+            end -- End zero alpha correction.
         end
 
         if #byteStrs <= 0 then
