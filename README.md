@@ -33,3 +33,5 @@ Once open, holding down the `Alt` or `Option` key and pressing the underlined le
 ## Modification
 
 If you would like to modify this script, Aseprite's scripting API documentation can be found [here](https://aseprite.org/api/). If you use [Visual Studio Code](https://code.visualstudio.com/), I recommend the [Lua Language Server](https://github.com/LuaLS/lua-language-server) extension along with an [Aseprite type definition](https://github.com/behreajj/aseprite-type-definition).
+
+🇹🇼 🇺🇦
