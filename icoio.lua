@@ -163,6 +163,18 @@ local function readIcoCur(fileData)
         if icoHeight == 0 then icoHeight = 256 end
         if numColors == 0 then numColors = 256 end
 
+        -- print(strfmt("bmpHeaderSize: %d (0x%08x)", bmpHeaderSize, bmpHeaderSize))
+        -- print(strfmt("bmpWidth: %d (0x%08x)", bmpWidth, bmpWidth))
+        -- print(strfmt("bmpHeight2: %d (0x%08x)", bmpHeight2, bmpHeight2))
+
+        if bmpHeaderSize ~= 40 or reserved ~= 0 then
+            return images, wMax, hMax, uniqueColors, {
+                "Found a malformed header when parsing the file.",
+                "This importer does not support Aseprite made icos,",
+                "nor does it support icos with compressed pngs."
+            }
+        end
+
         -- These checks are equal to zero, not less than or equal to, in case
         -- negative bitmap dimensions are supported.
         if bmpWidth == 0 or bmpHeight2 == 0 then
@@ -177,9 +189,6 @@ local function readIcoCur(fileData)
         if bmpWidth > wMax then wMax = bmpWidth end
         if bmpHeight > hMax then hMax = bmpHeight end
 
-        -- print(strfmt("bmpHeaderSize: %d (0x%08x)", bmpHeaderSize, bmpHeaderSize))
-        -- print(strfmt("bmpWidth: %d (0x%08x)", bmpWidth, bmpWidth))
-        -- print(strfmt("bmpHeight2: %d (0x%08x)", bmpHeight2, bmpHeight2))
         -- print(strfmt("bmpPlanes: %d (0x%04x)", bmpPlanes, bmpPlanes))
         -- print(strfmt("bmpBpp: %d (0x%04x)", bmpBpp, bmpBpp))
         -- print(strfmt("bmpCompress: %d (0x%08x)", bmpCompress, bmpCompress))
@@ -188,14 +197,6 @@ local function readIcoCur(fileData)
         -- print(strfmt("bmpYRes: %d (0x%08x)", bmpYRes, bmpYRes))
         -- print(strfmt("bmpUsed: %d (0x%08x)", bmpUsed, bmpUsed))
         -- print(strfmt("bmpKey: %d (0x%08x)", bmpKey, bmpKey))
-
-        if bmpHeaderSize ~= 40 or reserved ~= 0 then
-            return images, wMax, hMax, uniqueColors, {
-                "Found a malformed header when parsing the file.",
-                "This importer does not support Aseprite made icos,",
-                "nor does it support icos with compressed pngs."
-            }
-        end
 
         -- Calculations for draw mask, with 1 bit per alpha.
         local areaImage <const> = bmpWidth * bmpHeight
@@ -216,14 +217,15 @@ local function readIcoCur(fileData)
                 + ceil((bmpWidth * bmpBpp) / 32) * bmpHeight * 4
         end
 
+        local lenFileData <const> = #fileData
+        local alphaMapOffset <const> = dataOffset + 40 + lenColorMask
+
         -- local lenDWords <const> = dWordsPerRowMask * bmpHeight
         -- local dataSizeCalc <const> = 40 + lenColorMask + lenDWords * 4
         -- print(strfmt(
         --     "dataSize: %d, dataSizeCalc: %d (%s)",
         --     dataSize, dataSizeCalc,
         --     dataSize == dataSizeCalc and "match" or "mismatch"))
-
-        local alphaMapOffset <const> = dataOffset + 40 + lenColorMask
 
         -- print(strfmt(
         --     "lenColorMask: %d, dWordsPerRowMask: %d",
@@ -241,13 +243,21 @@ local function readIcoCur(fileData)
             local xDWord <const> = x // 32
             local xBit <const> = 31 - x % 32
             local idxDWord <const> = 4 * (y * dWordsPerRowMask + xDWord)
+            local orig <const> = alphaMapOffset + 1 + idxDWord
+            local dest <const> = alphaMapOffset + 4 + idxDWord
+            if dest > lenFileData then break end
             local dWord <const> = strunpack(">I4", strsub(fileData,
-                alphaMapOffset + 1 + idxDWord,
-                alphaMapOffset + 4 + idxDWord))
+                orig, dest))
             local mask <const> = (dWord >> xBit) & 0x1
             masks[1 + i] = mask
             i = i + 1
         end
+
+        while i < areaImage do
+            i = i + 1
+            masks[i] = 0
+        end
+
         -- print(tconcat(masks, ", "))
 
         ---@type integer[]
