@@ -468,8 +468,15 @@ local function readIcoCur(fileData)
                 or 0x00000000
             local m = 0
             while m < areaImage do
+                local x <const> = m % bmpWidth
+                local yFlipped <const> = m // bmpWidth
+                local y <const> = bmpHeight - 1 - yFlipped
+                local idxAse <const> = y * bmpWidth + x
+                local mask <const> = masks[1 + m]
+                byteStrs[1 + idxAse] = strpack("<I4", (mask == 0)
+                    and (alphaMask | abgr32Arr[1 + idxAse])
+                    or 0)
                 m = m + 1
-                byteStrs[m] = strpack("<I4", alphaMask | abgr32Arr[m])
             end -- End zero alpha correction.
         end
 
