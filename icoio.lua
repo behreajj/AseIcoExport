@@ -32,10 +32,17 @@ local defaults <const> = {
     frameTarget = "ALL",
     xHotSpot = 0,
     yHotSpot = 0,
-    format = "RGB24",
-    -- The size restrictions can be pushed to 512 x 512 for ico and cur,
-    -- but not for anis, which should stay at 256 x 256. The 256 limit
-    -- allows anis to be opened in Inkscape, but not Irfanview.
+
+    -- Chen: "Other restrictions: Supported color formats are 4bpp, 8bpp,
+    -- 16bpp, and 0RGB 32bpp. Note that 24bpp is not supported; you’ll have to
+    -- convert it to a 0RGB 32bpp bitmap."
+    -- If alpha is left as zero, then image editors like GIMP and
+    -- XnView MP will treat the pixels as transparent.
+    format = "RGB32",
+    writeOpaque = true,
+
+    -- There's mention of 512x512 icons, but this size will cause issues with
+    -- opening the image in Irfanview and Visual Studio Code.
     wLimitAni = 256,
     hLimitAni = 256,
     wLimitIcoCur = 512,
@@ -415,17 +422,6 @@ local function readIcoCur(fileData)
                 k = k + 1
             end
         elseif bmpBpp == 32 then
-            -- There's an issue with RGB32 as opened in GIMP vs. as
-            -- set in Windows Control Panel - Hardware and Sound -
-            -- Devices and Printers - Mouse . Color must be black to
-            -- be transparent with XOR mask. However, there's no way
-            -- to distinguish between RGB32 and RGBA32, so alpha still
-            -- reads as 0 and image appears blank.
-            --
-            -- The alpha cannot just be set to 255 if it is zero within
-            -- the mask clause above, as improperly formatted RGBA32
-            -- icos will have zero alpha colors with non-zero RGB.
-
             ---@type integer[]
             local abgr32Arr <const> = {}
             local allZeroAlpha = true
@@ -453,12 +449,7 @@ local function readIcoCur(fileData)
 
                 local y <const> = bmpHeight - 1 - yFlipped
                 local idxAse <const> = y * bmpWidth + x
-                local abgr32 <const> = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
-                abgr32Arr[1 + idxAse] = abgr32
-                if not abgr32Dict[abgr32] then
-                    dictCursor = dictCursor + 1
-                    abgr32Dict[abgr32] = dictCursor
-                end
+                abgr32Arr[1 + idxAse] = a8 << 0x18 | b8 << 0x10 | g8 << 0x08 | r8
 
                 k = k + 1
             end -- End pixels loop.
@@ -473,9 +464,18 @@ local function readIcoCur(fileData)
                 local y <const> = bmpHeight - 1 - yFlipped
                 local idxAse <const> = y * bmpWidth + x
                 local mask <const> = masks[1 + m]
-                byteStrs[1 + idxAse] = strpack("<I4", (mask == 0)
+                local abgr32 <const> = (mask == 0)
                     and (alphaMask | abgr32Arr[1 + idxAse])
-                    or 0)
+                    or 0
+                byteStrs[1 + idxAse] = strpack("<I4", abgr32)
+
+                -- This needs to be done here because otherwise images with
+                -- zero alpha will yield a transparent palette.
+                if not abgr32Dict[abgr32] then
+                    dictCursor = dictCursor + 1
+                    abgr32Dict[abgr32] = dictCursor
+                end
+
                 m = m + 1
             end -- End zero alpha correction.
         end
@@ -760,6 +760,7 @@ end
 ---@param xHotSpot number
 ---@param yHotSpot number
 ---@param format string
+---@param writeOpaque boolean for RGB32 format only
 ---@return string
 ---@nodiscard
 local function writeIcoCur(
@@ -770,7 +771,7 @@ local function writeIcoCur(
     hasBkg,
     extIsCur,
     xHotSpot, yHotSpot,
-    format)
+    format, writeOpaque)
     -- Cache methods.
     local ceil <const> = math.ceil
     local floor <const> = math.floor
@@ -959,8 +960,7 @@ local function writeIcoCur(
                 trgColorBytes[q] = strchar(c8)
             end
         elseif fmtIsRgb32 then
-            -- If alpha is left as zero, then image editors like GIMP and
-            -- XnView MP will treat the pixels as transparent.
+            local wrOpqVerif <const> = writeOpaque or false
             local q = 0
             while q < areaWrite do
                 q = q + 1
@@ -969,7 +969,8 @@ local function writeIcoCur(
                 local b8 <const> = abgr32 >> 0x10 & 0xff
                 local g8 <const> = abgr32 >> 0x08 & 0xff
                 local r8 <const> = abgr32 & 0xff
-                local a1 <const> = a8 <= maskThreshold and 0 or 255
+                local a1 <const> = (a8 > maskThreshold and wrOpqVerif)
+                    and 255 or 0
                 trgColorBytes[q] = strpack("B B B B", b8, g8, r8, a1)
             end
         else
@@ -1075,6 +1076,7 @@ end
 ---@param xHotSpot number
 ---@param yHotSpot number
 ---@param format string
+---@param writeOpaque boolean for RGB32 format only
 ---@return string
 ---@nodiscard
 local function writeAni(
@@ -1087,7 +1089,7 @@ local function writeAni(
     hasBkg,
     jifDefault,
     xHotSpot, yHotSpot,
-    format)
+    format, writeOpaque)
     local strpack <const> = string.pack
     local tconcat <const> = table.concat
 
@@ -1117,7 +1119,7 @@ local function writeAni(
             hasBkg,
             true,
             xHotSpot, yHotSpot,
-            format)
+            format, writeOpaque)
         local iconStr <const> = tconcat({
             "icon",
             strpack("<I4", #icoFileStr),
@@ -1466,6 +1468,23 @@ dlg:combobox {
     option = defaults.format,
     options = formats,
     focus = false,
+    onchange = function()
+        local args <const> = dlg.data
+        local format <const> = args.format --[[@as string]]
+        local isRgb32 <const> = format == "RGB32"
+        dlg:modify { id = "writeOpaque", visible = isRgb32 }
+    end
+}
+
+dlg:newrow { always = false }
+
+dlg:check {
+    id = "writeOpaque",
+    label = "Opacity:",
+    text = "Write",
+    selected = defaults.writeOpaque,
+    focus = false,
+    visible = defaults.format == "RGB32"
 }
 
 dlg:newrow { always = false }
@@ -1525,6 +1544,7 @@ dlg:button {
             or defaults.yHotSpot --[[@as integer]]
         local format <const> = args.format
             or defaults.format --[[@as string]]
+        local writeOpaque <const> = args.writeOpaque --[[@as boolean]]
         local exportFilepath <const> = args.exportFilepath --[[@as string]]
 
         if (not exportFilepath) or (#exportFilepath < 1) then
@@ -2015,6 +2035,8 @@ dlg:button {
         end
         if binFile == nil then return end
 
+        local writeOpqVerif <const> = writeOpaque
+            and format == "RGB32"
         local xHotSpot <const> = xHotSpot100 * 0.01
         local yHotSpot <const> = yHotSpot100 * 0.01
 
@@ -2031,7 +2053,7 @@ dlg:button {
                 hasBkg,
                 jiffDefault,
                 xHotSpot, yHotSpot,
-                format)
+                format, writeOpqVerif)
         else
             finalString = writeIcoCur(
                 chosenImages,
@@ -2041,7 +2063,7 @@ dlg:button {
                 hasBkg,
                 extIsCur,
                 xHotSpot, yHotSpot,
-                format)
+                format, writeOpqVerif)
         end
         binFile:write(finalString)
         binFile:close()
