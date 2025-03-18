@@ -23,7 +23,11 @@ local importFileExts <const> = { "ani", "cur", "ico" }
 local exportFileExts <const> = { "ani", "cur", "ico" }
 local visualTargets <const> = { "CANVAS", "LAYER", "SELECTION", "SLICES" }
 local frameTargets <const> = { "ACTIVE", "ALL", "TAG" }
-local formats <const> = { "RGB24", "RGB32", "RGBA32" }
+local formats <const> = {
+    "RGB24",
+    "RGB32",
+    "RGBA32",
+}
 
 local defaults <const> = {
     -- TODO: Support 8 bit indexed?
@@ -43,8 +47,8 @@ local defaults <const> = {
 
     -- There's mention of 512x512 icons, but this size will cause issues with
     -- opening the image in Irfanview and Visual Studio Code.
-    wLimitAni = 256,
-    hLimitAni = 256,
+    wLimitAni = 512,
+    hLimitAni = 512,
     wLimitIcoCur = 512,
     hLimitIcoCur = 512,
 }
@@ -1174,6 +1178,9 @@ local function writeAni(
         bpp = 24
     end
 
+    -- Since wAni and hAni are 32-bits, they shouldn't need to be wrapped to
+    -- zero if they equal 256.
+
     local aniHeader <const> = strpack(
         "<I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4 <I4",
         0x68696E61,      -- 01 00 "anih"
@@ -1784,6 +1791,7 @@ dlg:button {
             local pointZero <const> = Point(0, 0)
             local blendModeSrc <const> = BlendMode.SRC
 
+            -- TODO: Anis require that all frames have the same size!
             local j = 0
             while j < lenChosenFrIdcs do
                 j = j + 1
@@ -1939,7 +1947,7 @@ dlg:button {
             -- Otherwise the length of chosen images will be of different
             -- length than the lengths of chosen frames, etc.
             if extIsAni and lenChosenSlices > 1 then
-                app.alet {
+                app.alert {
                     title = "Error",
                     text = "Only one slice can be selected per ani file."
                 }
