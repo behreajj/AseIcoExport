@@ -1069,6 +1069,8 @@ local function writeIcoCur(
     return finalString
 end
 
+---Images should all have the same size before being
+---provided to this function.
 ---@param chosenImages Image[]
 ---@param chosenPalettes Palette[]
 ---@param displaySeq integer[]
@@ -1787,11 +1789,21 @@ dlg:button {
             end
 
             hasBkg = activeLayer.isBackground
+            if extIsAni and (not hasBkg) then
+                app.alert {
+                    title = "Error",
+                    text = {
+                        "For best results, all frames of an ani",
+                        "should be the same size. This cannot be",
+                        "guaranteed with a non-background layer."
+                    }
+                }
+                return
+            end
 
             local pointZero <const> = Point(0, 0)
             local blendModeSrc <const> = BlendMode.SRC
 
-            -- TODO: Anis require that all frames have the same size!
             local j = 0
             while j < lenChosenFrIdcs do
                 j = j + 1
