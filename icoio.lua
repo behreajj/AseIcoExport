@@ -31,6 +31,8 @@ local formats <const> = {
 
 local defaults <const> = {
     -- TODO: Support 8 bit indexed?
+    -- TODO: Use 1.3.14 support for os.remove to write a temp.png file, then
+    -- incorporate the byte code into ico file?
     fps = 12,
     visualTarget = "CANVAS",
     frameTarget = "ALL",
