@@ -1239,6 +1239,7 @@ dlg:file {
     id = "importFilepath",
     label = "Open:",
     filetypes = importFileExts,
+    basepath = app.fs.userDocsPath,
     open = true,
     focus = false,
 }
@@ -1523,6 +1524,7 @@ dlg:file {
     id = "exportFilepath",
     label = "Save:",
     filetypes = exportFileExts,
+    basepath = app.fs.userDocsPath,
     save = true,
     focus = true,
 }
