@@ -1460,6 +1460,7 @@ dlg:combobox {
     option = defaults.visualTarget,
     options = visualTargets,
     focus = false,
+    hexpand = false,
 }
 
 dlg:newrow { always = false }
@@ -1470,6 +1471,7 @@ dlg:combobox {
     option = defaults.frameTarget,
     options = frameTargets,
     focus = false,
+    hexpand = false,
 }
 
 dlg:newrow { always = false }
@@ -1480,6 +1482,7 @@ dlg:combobox {
     option = defaults.format,
     options = formats,
     focus = false,
+    hexpand = false,
     onchange = function()
         local args <const> = dlg.data
         local format <const> = args.format --[[@as string]]
@@ -1496,7 +1499,8 @@ dlg:check {
     text = "Write",
     selected = defaults.writeOpaque,
     focus = false,
-    visible = defaults.format == "RGB32"
+    visible = defaults.format == "RGB32",
+    hexpand = false,
 }
 
 dlg:newrow { always = false }
