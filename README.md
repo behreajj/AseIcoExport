@@ -6,7 +6,7 @@ This an [Aseprite](https://www.aseprite.org/) script to export `ani`s, `cur`s an
 
 Aseprite can load and save `ico`s, but the files are unreadable by other graphics editors, and do not support alpha even when they should.
 
-Export is limited to to the size 512 by 512 pixels. Image dimensions are increased to the next greater power of two (8, 16, 32, 64, 128, 256). Images of size 512 may not be supported by other graphics editors.
+Export is limited to to the size 512 by 512 pixels. Image dimensions are increased to the next standard size (16, 24, 32, 48, 64, 96, 128, 256, 512). Images of size 512 may not be supported by other graphics editors.
 
 Each frame is stored as a separate entry in the same file; for `ico`s and `cur`s, frames are treated as the same image at different resolutions.
 

@@ -55,24 +55,20 @@ local defaults <const> = {
     hLimitIcoCur = 512,
 }
 
+local availSizes <const> = { 16, 24, 32, 48, 64, 96, 128, 256, 512 }
+local lenAvailSizes <const> = #availSizes
+
 ---@param x integer
 ---@return integer
 ---@nodiscard
-local function nextPowerOf2(x)
-    if x ~= 0 then
-        local xSgn = 1
-        local xAbs = x
-        if x < 0 then
-            xAbs = -x
-            xSgn = -1
-        end
-        local p = 1
-        while p < xAbs do
-            p = p << 1
-        end
-        return p * xSgn
+local function nextGreatestSize(x)
+    local i = 0
+    while i < lenAvailSizes do
+        i = i + 1
+        local availSize <const> = availSizes[i]
+        if x <= availSize then return availSize end
     end
-    return 0
+    return availSizes[lenAvailSizes]
 end
 
 ---@param fileData string
@@ -1240,8 +1236,7 @@ dlg:file {
     label = "Open:",
     filetypes = importFileExts,
     basepath = app.fs.userDocsPath,
-    open = true,
-    focus = false,
+    open = true
 }
 
 dlg:newrow { always = false }
@@ -1530,7 +1525,6 @@ dlg:file {
     filetypes = exportFileExts,
     basepath = app.fs.userDocsPath,
     save = true,
-    focus = true,
 }
 
 dlg:newrow { always = false }
@@ -1824,8 +1818,8 @@ dlg:button {
                     local hCel <const> = imageCel.height
                     local imageTrg = imageCel
                     -- if wCel > wLimit or hCel > hLimit then
-                    local wBlit <const> = min(wLimit, nextPowerOf2(wCel))
-                    local hBlit <const> = min(hLimit, nextPowerOf2(hCel))
+                    local wBlit <const> = min(wLimit, nextGreatestSize(wCel))
+                    local hBlit <const> = min(hLimit, nextGreatestSize(hCel))
                     local specBlit <const> = ImageSpec {
                         width = wBlit,
                         height = hBlit,
@@ -1864,8 +1858,8 @@ dlg:button {
             local wBounds <const> = max(1, abs(boundsMask.width))
             local hBounds <const> = max(1, abs(boundsMask.height))
 
-            local wBlit <const> = min(wLimit, nextPowerOf2(wBounds))
-            local hBlit <const> = min(hLimit, nextPowerOf2(hBounds))
+            local wBlit <const> = min(wLimit, nextGreatestSize(wBounds))
+            local hBlit <const> = min(hLimit, nextGreatestSize(hBounds))
             local specBlit <const> = ImageSpec {
                 width = wBlit,
                 height = hBlit,
@@ -1989,8 +1983,8 @@ dlg:button {
                 local hBounds <const> = max(1, abs(boundsSlice.height))
                 local blitOffset <const> = Point(-xtlBounds, -ytlBounds)
 
-                local wBlit <const> = min(wLimit, nextPowerOf2(wBounds))
-                local hBlit <const> = min(hLimit, nextPowerOf2(hBounds))
+                local wBlit <const> = min(wLimit, nextGreatestSize(wBounds))
+                local hBlit <const> = min(hLimit, nextGreatestSize(hBounds))
                 local specBlit <const> = ImageSpec {
                     width = wBlit,
                     height = hBlit,
@@ -2020,8 +2014,8 @@ dlg:button {
                 and activeSprite.backgroundLayer.isVisible
 
             local pointZero <const> = Point(0, 0)
-            local wBlit <const> = min(wLimit, nextPowerOf2(wSprite))
-            local hBlit <const> = min(hLimit, nextPowerOf2(hSprite))
+            local wBlit <const> = min(wLimit, nextGreatestSize(wSprite))
+            local hBlit <const> = min(hLimit, nextGreatestSize(hSprite))
             local specBlit <const> = ImageSpec {
                 width = wBlit,
                 height = hBlit,
